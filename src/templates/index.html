@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div>
+    <h1>Robia Loans</h1>
+    <h2>Where <u>approved</u> loan seekers meet <u>verified</u> providers</h2>
+    <div class="introduction">
+      <h5>Need a loan?</h5>
+      <h5 class="highlight">
+        Sign up <a href="#quick-loan" class="hide-decoration">
+          <u>here</u><svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#e3e3e3">
+            <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z" />
+          </svg>
+        </a>
+      </h5>
+    </div>
+    <div class="introduction">
+      <h5 class="highlight-red">Looking for customers?</h5>
+      <h5>
+        Become a <a href="#" class="hide-decoration">
+          <u>provider</u><svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#e3e3e3">
+            <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z" />
+          </svg>
+        </a>
+      </h5>
+    </div>
+    <form action="#">
+      <div class="section" id="quick-loan">
+        <h2>Quick loan form</h2>
+        <p>
+          Get a loan quickly from one of our many <a href="#" class="hide-decoration highlight-red-small">verified providers</a>. Fill out the form below to get started.<br />Once you're approved, you'll receive bids for this loan. Compare them to decide which is the most favourable, select one and that’s all!
+        </p>
+      </div>
+      <div class="input-base-section">
+        <div class="input-base-container">
+          <p>Loan Amount</p>
+          <input id="loanamount" type="number" class="input-base-item" placeholder="200,000" />
+        </div>
+        <div class="input-base-container left-margin">
+          <p>Loan Duration</p>
+          <input id="loanduration" type="text" class="input-base-item" placeholder="2 months" />
+        </div>
+      </div>
+      <div class="input-base-section">
+        <div class="input-base-container">
+          <p>Desired Interest</p>
+          <input id="desiredinterest" type="number" class="input-base-item" placeholder="20%" />
+        </div>
+      </div>
+      <h4>Personal Details</h4>
+      <div class="input-base-section">
+        <div class="input-base-container">
+          <p>Full Name</p>
+          <input id="fullname" type="text" class="input-base-item" placeholder="Enter your full name" />
+        </div>
+        <div class="input-base-container left-margin">
+          <p>Email Address</p>
+          <input id="email" type="email" class="input-base-item" placeholder="Enter your email address" />
+        </div>
+      </div>
+      <div class="input-base-section">
+        <div class="input-base-container">
+          <p>National ID</p>
+          <input id="nationalid" type="text" class="input-base-item" placeholder="CM12345678CNNK" />
+        </div>
+        <div class="input-base-container left-margin">
+          <p>Phone Number</p>
+          <input id="phonenumber" type="tel" class="input-base-item" placeholder="2567xxxxxxx" />
+        </div>
+      </div>
+      <div class="input-base-section">
+        <div class="input-base-container">
+          <p>Proof of Address</p>
+          <input id="proofofaddress" type="file" class="input-base-item" placeholder="Upload your proof of address" />
+        </div>
+      </div>
+      <button class="submit-button">Submit Loan Request</button>
+    </form>
+    <div class="section">
+      <h2>Provide a loan</h2>
+      <p>
+        Becoming a provider is as easy as filling in the details below, and waiting normally 1 business day for verification.<br />
+        Once done, you’ll have access to our catalogue of <a href="#" class="hide-decoration highlight-blue-small">professionally vetted</a> loan bids.
+      </p>
+    </div>
+  </div>
+{% endblock %}

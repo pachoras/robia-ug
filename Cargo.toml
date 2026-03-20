@@ -1,0 +1,18 @@
+[package]
+name = "robia-ug"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+serde = "1.0.228"
+tera = "1.20.1"
+sqlx = { version = "0.8", features = ["macros", "postgres", "runtime-tokio", "time"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5.3"
+tower-http = { version = "0.6.8", features = ["cors", "compression-br", "fs", "request-id", "trace"]}
+sha2 = "0.10.9"
+chrono = "0.4.44"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "std"] }
+log = "0.4.29"

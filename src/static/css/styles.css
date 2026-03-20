@@ -1,0 +1,353 @@
+/* ==========================================================================
+    TABLE OF CONTENTS
+    ==========================================================================
+    1. Variables & Mixins
+    2. Reset & Base Styles
+    3. Typography
+    4. Layout & Grid
+    5. Header
+    6. Sidebar
+    7. Main Content
+    8. Forms
+    9. Modals & Dialogs
+    10. Notifications & Alerts
+    11. Pagination
+    12. Breadcrumbs
+    13. Tabs & Accordions
+    14. Tooltips & Popovers
+    15. Loaders & Spinners
+    16. Media
+    17. Footer
+    18. Utility Classes
+    19. Animations & Transitions
+    20. Responsive / Media Queries
+    21. Print Styles
+    22. Dark Mode / Theme Overrides
+    ========================================================================== */
+/* ==========================================================================
+    1. Variables & Mixins
+    ========================================================================== */
+.highlight-blue-small, .highlight-blue, .highlight-red-small, .highlight-red, .highlight {
+  color: #fff;
+  padding: 1rem;
+  margin-right: 1rem;
+  border-radius: 15px;
+}
+
+h6, h5, h4, h3, h2, h1 {
+  font-weight: 500;
+}
+
+.hide-decoration {
+  text-decoration: none;
+  color: inherit;
+}
+
+.menubar-logo, .container-side {
+  display: flex;
+  align-items: center;
+}
+
+.input-base-item, .input-base-container, .login-container, .section, .container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+    2. Reset & Base Styles
+    ========================================================================== */
+html {
+  font-family: "Inter", sans-serif;
+  color: #fff;
+  background-color: #444140;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+main {
+  display: flex;
+  flex-direction: row;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(11px);
+  -webkit-backdrop-filter: blur(11px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  margin: 0.5rem;
+}
+
+/* ==========================================================================
+    3. Typography
+    ========================================================================== */
+h1 {
+  font-size: 48px;
+  margin-bottom: 1rem;
+}
+
+h2 {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+h3 {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+h4 {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+h5 {
+  font-size: 1.25rem;
+  margin-bottom: 0.125rem;
+}
+
+h6 {
+  font-size: 1rem;
+  margin-bottom: 0.0625rem;
+}
+
+.shallow {
+  padding: 0;
+  margin: 0.5rem;
+}
+
+.hide-decoration {
+  flex: 1;
+}
+
+.highlight {
+  background-color: #000000;
+  margin-left: 1rem;
+  flex: 1;
+}
+.highlight:hover {
+  background-color: #282828;
+  transition: color 0.3s ease;
+}
+
+.highlight-red {
+  background-color: #FF1654;
+}
+.highlight-red:hover {
+  background-color: rgba(255, 22, 84, 0.5);
+  transition: color 0.3s ease;
+}
+
+.highlight-red-small {
+  background-color: #FF1654;
+  padding: 0.125rem 0.5rem 0.125rem 0.5rem;
+  margin: 0;
+}
+
+.highlight-blue {
+  background-color: #247BA0;
+}
+
+.highlight-blue-small {
+  background-color: #247BA0;
+  padding: 0.125rem 0.5rem 0.125rem 0.5rem;
+  margin: 0;
+}
+
+/* ==========================================================================
+    4. Layout & Grid
+    ========================================================================== */
+.full-width {
+  width: 100%;
+}
+
+.container {
+  justify-content: flex-start;
+  align-items: center;
+  padding: 1rem;
+  width: 60vw;
+}
+
+.container-side {
+  padding: 1rem;
+  width: 20vw;
+}
+
+.section {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.introduction {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+}
+
+.left-margin {
+  margin-left: 1rem;
+}
+
+.login-container {
+  align-items: center;
+  background-color: rgba(217, 217, 217, 0.25);
+  padding: 2rem;
+  border-radius: 16px;
+  width: 300px;
+}
+
+/* ==========================================================================
+    5. Header
+    ========================================================================== */
+.menubar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin-bottom: 1rem;
+  background-color: #000000;
+  height: 2rem;
+}
+.menubar-button {
+  background-color: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+.menubar-button:hover {
+  background-color: #fff;
+  color: #000000;
+  border-radius: 10px;
+  padding: 0 0.25rem;
+}
+.menubar-button:active {
+  cursor: pointer;
+  background-color: #aaaaaa;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* ==========================================================================
+    6. Sidebar
+    ========================================================================== */
+/* 6.1 Sidebar Navigation */
+/* 6.2 Sidebar Widgets */
+/* ==========================================================================
+    7. Main Content
+    ========================================================================== */
+/* 7.1 Hero / Banner */
+/* 7.2 Cards */
+/* 7.3 Tables */
+/* 7.4 Lists */
+/* ==========================================================================
+    8. Forms
+    ========================================================================== */
+.input-base:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+.input-base-item {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background-color: #fff;
+  color: #000000;
+  border-radius: 15px;
+  border: none;
+  box-sizing: border-box;
+}
+.input-base-section {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.submit-button {
+  background-color: #247BA0;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.submit-button:hover {
+  background-color: rgb(226, 0, 60.1373390558);
+}
+.submit-button:active {
+  background-color: rgb(175, 0, 46.5665236052);
+}
+
+/* ==========================================================================
+    9. Modals & Dialogs
+    ========================================================================== */
+/* ==========================================================================
+    10. Notifications & Alerts
+    ========================================================================== */
+/* 10.1 Toast Messages */
+/* 10.2 Inline Alerts */
+/* 10.3 Badges & Tags */
+/* ==========================================================================
+    11. Pagination
+    ========================================================================== */
+/* ==========================================================================
+    12. Breadcrumbs
+    ========================================================================== */
+/* ==========================================================================
+    13. Tabs & Accordions
+    ========================================================================== */
+/* ==========================================================================
+    14. Tooltips & Popovers
+    ========================================================================== */
+/* ==========================================================================
+    15. Loaders & Spinners
+    ========================================================================== */
+/* ==========================================================================
+    16. Media
+    ========================================================================== */
+/* 16.1 Images & Avatars */
+/* 16.2 Video & Embeds */
+/* 16.3 Icons */
+/* ==========================================================================
+    17. Footer
+    ========================================================================== */
+/* 17.1 Footer Navigation */
+/* 17.2 Footer Info & Legal */
+/* ==========================================================================
+    18. Utility Classes
+    ========================================================================== */
+/* 18.1 Spacing (Margins & Padding) */
+/* 18.2 Display & Visibility */
+/* 18.3 Flexbox & Alignment */
+/* 18.4 Text Alignment & Colors */
+/* 18.5 Borders & Shadows */
+/* ==========================================================================
+    19. Animations & Transitions
+    ========================================================================== */
+/* ==========================================================================
+    20. Responsive / Media Queries
+    ========================================================================== */
+/* 20.1 Mobile (max-width: 576px) */
+/* 20.2 Tablet (max-width: 768px) */
+/* 20.3 Desktop (max-width: 1024px) */
+/* 20.4 Large Desktop (min-width: 1200px) */
+/* ==========================================================================
+    21. Print Styles
+    ========================================================================== */
+/* ==========================================================================
+    22. Dark Mode / Theme Overrides
+    ========================================================================== */
+
+/*# sourceMappingURL=styles.css.map */

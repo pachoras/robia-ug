@@ -1,0 +1,432 @@
+/* ==========================================================================
+    TABLE OF CONTENTS
+    ==========================================================================
+    1. Variables & Mixins
+    2. Reset & Base Styles
+    3. Typography
+    4. Layout & Grid
+    5. Header
+    6. Sidebar
+    7. Main Content
+    8. Forms
+    9. Modals & Dialogs
+    10. Notifications & Alerts
+    11. Pagination
+    12. Breadcrumbs
+    13. Tabs & Accordions
+    14. Tooltips & Popovers
+    15. Loaders & Spinners
+    16. Media
+    17. Footer
+    18. Utility Classes
+    19. Animations & Transitions
+    20. Responsive / Media Queries
+    21. Print Styles
+    22. Dark Mode / Theme Overrides
+    ========================================================================== */
+
+/* ==========================================================================
+    1. Variables & Mixins
+    ========================================================================== */
+
+// Colors
+$color-white: #fff;
+$color-black: #000000;
+$color-black-fade: #282828;
+$color-bg: #444140;
+$color-accent-red: #FF1654;
+$color-accent-red-fade: rgba($color-accent-red, 0.5);
+$color-accent-blue: #247BA0;
+$color-grey: #aaaaaa;
+$color-grey-light: #e3e3e3;
+$color-login-grey: rgba(217, 217, 217, 0.25);
+
+// Font
+$font-family-base: 'Inter', sans-serif;
+
+// Border radius
+$radius-sm: 10px;
+$radius-md: 15px;
+$radius-lg: 16px;
+
+// Shared patterns
+%highlight-base {
+    color: $color-white;
+    padding: 1rem;
+    margin-right: 1rem;
+    border-radius: $radius-md;
+}
+
+%heading-base {
+    font-weight: 500;
+}
+
+%interactive-reset {
+    text-decoration: none;
+    color: inherit;
+}
+
+%flex-center {
+    display: flex;
+    align-items: center;
+}
+
+%flex-column {
+    display: flex;
+    flex-direction: column;
+}
+
+
+@mixin heading-size($size, $margin-bottom) {
+    @extend %heading-base;
+    font-size: $size;
+    margin-bottom: $margin-bottom;
+}
+
+/* ==========================================================================
+    2. Reset & Base Styles
+    ========================================================================== */
+
+html {
+    font-family: $font-family-base;
+    color: $color-white;
+    background-color: $color-bg;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
+main {
+    display: flex;
+    flex-direction: row;
+}
+
+.glass {
+    background: rgba($color-white, 0.22);
+    border-radius: $radius-lg;
+    box-shadow: 0 4px 30px rgba($color-black, 0.1);
+    backdrop-filter: blur(11px);
+    -webkit-backdrop-filter: blur(11px);
+    border: 1px solid rgba($color-white, 0.22);
+    color: $color-white;
+    margin: 0.5rem;
+}
+
+/* ==========================================================================
+    3. Typography
+    ========================================================================== */
+
+h1 {
+    @include heading-size(48px, 1rem);
+}
+
+h2 {
+    @include heading-size(2rem, 0.75rem);
+}
+
+h3 {
+    @include heading-size(1.75rem, 0.5rem);
+}
+
+h4 {
+    @include heading-size(1.5rem, 0.25rem);
+}
+
+h5 {
+    @include heading-size(1.25rem, 0.125rem);
+}
+
+h6 {
+    @include heading-size(1rem, 0.0625rem);
+}
+
+.shallow {
+    padding: 0;
+    margin: 0.5rem;
+}
+
+.hide-decoration {
+    @extend %interactive-reset;
+    flex: 1;
+}
+
+.highlight {
+    @extend %highlight-base;
+    background-color: $color-black;
+    margin-left: 1rem;
+    flex: 1;
+
+    &:hover {
+        background-color: $color-black-fade;
+        transition: color 0.3s ease;
+    }
+}
+
+.highlight-red {
+    @extend %highlight-base;
+    background-color: $color-accent-red;
+
+    &:hover {
+        background-color: $color-accent-red-fade;
+        transition: color 0.3s ease;
+    }
+}
+
+.highlight-red-small {
+    @extend %highlight-base;
+    background-color: $color-accent-red;
+    padding: 0.125rem 0.5rem 0.125rem 0.5rem;
+    margin: 0;
+}
+
+.highlight-blue {
+    @extend %highlight-base;
+    background-color: $color-accent-blue;
+}
+
+.highlight-blue-small {
+    @extend %highlight-base;
+    background-color: $color-accent-blue;
+    padding: 0.125rem 0.5rem 0.125rem 0.5rem;
+    margin: 0;
+}
+
+/* ==========================================================================
+    4. Layout & Grid
+    ========================================================================== */
+
+.full-width {
+    width: 100%;
+}
+
+.container {
+    @extend %flex-column;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 1rem;
+    width: 60vw;
+}
+
+.container-side {
+    @extend %flex-center;
+    padding: 1rem;
+    width: 20vw;
+}
+
+.section {
+    @extend %flex-column;
+    justify-content: flex-start;
+    width: 100%;
+}
+
+.introduction {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+}
+
+.left-margin {
+    margin-left: 1rem;
+}
+
+.login-container {
+    @extend %flex-column;
+    align-items: center;
+    background-color: $color-login-grey;
+    padding: 2rem;
+    border-radius: $radius-lg;
+    width: 300px;
+}
+
+/* ==========================================================================
+    5. Header
+    ========================================================================== */
+
+.menubar {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 1rem;
+    background-color: $color-black;
+    height: 2rem;
+
+    &-logo {
+        @extend %flex-center;
+    }
+
+    &-button {
+        background-color: transparent;
+        border: none;
+        color: $color-white;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: color 0.3s ease;
+
+        &:hover {
+            background-color: $color-white;
+            color: $color-black;
+            border-radius: $radius-sm;
+            padding: 0 0.25rem;
+        }
+
+        &:active {
+            cursor: pointer;
+            background-color: $color-grey;
+        }
+    }
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $color-white;
+    text-decoration: none;
+}
+
+/* ==========================================================================
+    6. Sidebar
+    ========================================================================== */
+
+/* 6.1 Sidebar Navigation */
+/* 6.2 Sidebar Widgets */
+
+/* ==========================================================================
+    7. Main Content
+    ========================================================================== */
+
+/* 7.1 Hero / Banner */
+/* 7.2 Cards */
+/* 7.3 Tables */
+/* 7.4 Lists */
+
+/* ==========================================================================
+    8. Forms
+    ========================================================================== */
+
+.input-base {
+    &:focus {
+        outline: none;
+        border-color: $color-black;
+        box-shadow: 0 0 5px rgba($color-black, 0.5);
+    }
+
+    &-container {
+        @extend %flex-column;
+    }
+
+    &-item {
+        @extend %flex-column;
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background-color: $color-white;
+        color: $color-black;
+        border-radius: $radius-md;
+        border: none;
+        box-sizing: border-box;
+    }
+
+    &-section {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+    }
+}
+
+.submit-button {
+    background-color: $color-accent-blue;
+    color: $color-white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: $radius-md;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+
+    &:hover {
+        background-color: darken($color-accent-red, 10%);
+    }
+
+    &:active {
+        background-color: darken($color-accent-red, 20%);
+    }
+}
+
+/* ==========================================================================
+    9. Modals & Dialogs
+    ========================================================================== */
+
+/* ==========================================================================
+    10. Notifications & Alerts
+    ========================================================================== */
+
+/* 10.1 Toast Messages */
+/* 10.2 Inline Alerts */
+/* 10.3 Badges & Tags */
+
+/* ==========================================================================
+    11. Pagination
+    ========================================================================== */
+
+/* ==========================================================================
+    12. Breadcrumbs
+    ========================================================================== */
+
+/* ==========================================================================
+    13. Tabs & Accordions
+    ========================================================================== */
+
+/* ==========================================================================
+    14. Tooltips & Popovers
+    ========================================================================== */
+
+/* ==========================================================================
+    15. Loaders & Spinners
+    ========================================================================== */
+
+/* ==========================================================================
+    16. Media
+    ========================================================================== */
+
+/* 16.1 Images & Avatars */
+/* 16.2 Video & Embeds */
+/* 16.3 Icons */
+
+/* ==========================================================================
+    17. Footer
+    ========================================================================== */
+
+/* 17.1 Footer Navigation */
+/* 17.2 Footer Info & Legal */
+
+/* ==========================================================================
+    18. Utility Classes
+    ========================================================================== */
+
+/* 18.1 Spacing (Margins & Padding) */
+/* 18.2 Display & Visibility */
+/* 18.3 Flexbox & Alignment */
+/* 18.4 Text Alignment & Colors */
+/* 18.5 Borders & Shadows */
+
+/* ==========================================================================
+    19. Animations & Transitions
+    ========================================================================== */
+
+/* ==========================================================================
+    20. Responsive / Media Queries
+    ========================================================================== */
+
+/* 20.1 Mobile (max-width: 576px) */
+/* 20.2 Tablet (max-width: 768px) */
+/* 20.3 Desktop (max-width: 1024px) */
+/* 20.4 Large Desktop (min-width: 1200px) */
+
+/* ==========================================================================
+    21. Print Styles
+    ========================================================================== */
+
+/* ==========================================================================
+    22. Dark Mode / Theme Overrides
+    ========================================================================== */

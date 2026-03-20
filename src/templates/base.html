@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ static_path }}" />
+  </head>
+  <body>
+    <header class="menubar">
+      <span class="menubar-logo"><a href="/" class="logo"><img height="24" width="24" src="/static/svg/logo.svg" alt="Robia Loans Logo" /></a></span>
+      <span class="menubar-button"><a href="#" class="shallow hide-decoration">Get a Loan</a></span>
+      <span class="menubar-button"><a href="#" class="shallow hide-decoration">Provide a Loan</a></span>
+      <span class="menubar-button"><a href="#" class="shallow hide-decoration">Blog</a></span>
+      <span class="menubar-button"><a href="#" class="shallow hide-decoration">Sign In</a></span>
+    </header>
+    <main>
+      <section class="container-side"></section>
+      <section class="container">
+        {% block content %}
+
+        {% endblock %}
+      </section>
+      <section class="container-side"></section>
+    </main>
+    <footer>
+      <p>&copy; {{ title }}. All rights reserved.</p>
+    </footer>
+  </body>
+</html>

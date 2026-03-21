@@ -39,8 +39,11 @@ Migrations are run automatically on startup. The schema (see [migrations/](migra
    source .env
    set +a
    ```
-
-2. Build and run:
+2. Create the database (also runs migrations)
+   ```sh
+   cargo sqlx database create
+   ```
+3. Build and run:
 
    ```sh
    cargo run && sass --watch src/static/css/styles.scss:src/static/css/styles.css

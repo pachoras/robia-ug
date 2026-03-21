@@ -1,12 +1,17 @@
 mod auth;
+mod files;
 mod models;
 mod renderer;
 mod routes;
 mod state;
 mod utils;
 
-use axum::{Router, routing::get};
-use routes::index;
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+};
+
 use tokio;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
@@ -45,10 +50,12 @@ fn init_router(state: state::AppState) -> Router {
         .init();
 
     Router::new()
-        .route("/", get(index))
+        .route("/", get(routes::index))
+        .route("/register-loan", post(routes::register_loan))
         .route("/app", get(routes::loan_application))
         .nest_service("/static", ServeDir::new("src/static"))
         .with_state(state)
+        .layer(DefaultBodyLimit::disable())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

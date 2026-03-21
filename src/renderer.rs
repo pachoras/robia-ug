@@ -1,5 +1,7 @@
 use tera::Tera;
 
+use crate::utils;
+
 /// Initializes the Tera template engine by loading all templates from the specified directory.
 pub fn init_renderer() -> Tera {
     let mut tera = Tera::new("templates/**/*").unwrap();
@@ -22,6 +24,9 @@ pub fn render_template(
     for (key, value) in variables {
         context.insert(key, value);
     }
+    // Always include the static CSS path in the context for all templates
+    let static_css_path = utils::generate_cache_busted_css_path().unwrap();
+    context.insert("static_path", &static_css_path);
 
     // Render the template with the given context
     tera.render(path, &context).map_err(|e| e.to_string())

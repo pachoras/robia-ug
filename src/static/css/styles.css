@@ -202,6 +202,56 @@ h6 {
   width: 300px;
 }
 
+.error-popup {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+.error-popup-center {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 200px;
+  width: 500px;
+  background-color: #FF1654;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 15px;
+}
+
+.success-popup {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+.success-popup-center {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 200px;
+  width: 500px;
+  background-color: #247BA0;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 15px;
+}
+
 /* ==========================================================================
     5. Header
     ========================================================================== */
@@ -274,6 +324,13 @@ h6 {
   align-items: flex-start;
 }
 
+.error-message {
+  color: #FF1654;
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 .submit-button {
   background-color: #247BA0;
   color: #fff;
@@ -336,6 +393,21 @@ h6 {
 /* ==========================================================================
     19. Animations & Transitions
     ========================================================================== */
+.shrinking-horizontal-bar {
+  width: 100%;
+  height: 4px;
+  background-color: #fff;
+  animation: shrink-horizontal 5s ease-in-out infinite;
+}
+@keyframes shrink-horizontal {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
 /* ==========================================================================
     20. Responsive / Media Queries
     ========================================================================== */

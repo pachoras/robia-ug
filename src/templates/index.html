@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+
 {% block content %}
   <div>
     <h1>Robia Loans</h1>
@@ -23,7 +24,7 @@
         </a>
       </h5>
     </div>
-    <form action="#">
+    <form action="/register-loan" method="post" enctype="multipart/form-data">
       <div class="section" id="quick-loan">
         <h2>Quick loan form</h2>
         <p>
@@ -33,54 +34,81 @@
       <div class="input-base-section">
         <div class="input-base-container">
           <p>Loan Amount</p>
-          <input id="loanamount" type="number" class="input-base-item" placeholder="200,000" />
+          <input id="loan_amount" name="loan_amount" required type="number" class="input-base-item" placeholder="200,000" autocomplete="off" />
+          {% if loan_amount_error %}
+            <p class="error-message">{{ loan_amount_error }}</p>
+          {% endif %}
         </div>
         <div class="input-base-container left-margin">
           <p>Loan Duration</p>
-          <input id="loanduration" type="text" class="input-base-item" placeholder="2 months" />
+          <input id="loan_duration" name="loan_duration" required type="text" class="input-base-item" placeholder="2 months" autocomplete="off" />
+          {% if loan_duration_error %}
+            <p class="error-message">{{ loan_duration_error }}</p>
+          {% endif %}
         </div>
       </div>
       <div class="input-base-section">
         <div class="input-base-container">
           <p>Desired Interest</p>
-          <input id="desiredinterest" type="number" class="input-base-item" placeholder="20%" />
+          <input id="desired_interest" name="desired_interest" required type="number" class="input-base-item" placeholder="20%" autocomplete="off" />
+          {% if desired_interest_error %}
+            <p class="error-message">{{ desired_interest_error }}</p>
+          {% endif %}
         </div>
       </div>
       <h4>Personal Details</h4>
       <div class="input-base-section">
         <div class="input-base-container">
           <p>Full Name</p>
-          <input id="fullname" type="text" class="input-base-item" placeholder="Enter your full name" />
+          <input id="full_name" name="full_name" required type="text" class="input-base-item" placeholder="Enter your full name" autocomplete="name" />
+          {% if full_name_error %}
+            <p class="error-message">{{ full_name_error }}</p>
+          {% endif %}
         </div>
         <div class="input-base-container left-margin">
           <p>Email Address</p>
-          <input id="email" type="email" class="input-base-item" placeholder="Enter your email address" />
+          <input id="email" name="email" required type="email" class="input-base-item" placeholder="Enter your email address" autocomplete="email" />
+          {% if email_error %}
+            <p class="error-message">{{ email_error }}</p>
+          {% endif %}
         </div>
       </div>
       <div class="input-base-section">
         <div class="input-base-container">
           <p>National ID</p>
-          <input id="nationalid" type="text" class="input-base-item" placeholder="CM12345678CNNK" />
+          <input id="national_id" name="national_id" required type="text" class="input-base-item" placeholder="CM12345678CNNK" autocomplete="off" />
+          {% if national_id_error %}
+            <p class="error-message">{{ national_id_error }}</p>
+          {% endif %}
         </div>
         <div class="input-base-container left-margin">
           <p>Phone Number</p>
-          <input id="phonenumber" type="tel" class="input-base-item" placeholder="2567xxxxxxx" />
+          <input id="phone_number" name="phone_number" required type="tel" class="input-base-item" placeholder="2567xxxxxxx" autocomplete="tel" />
+          {% if phone_number_error %}
+            <p class="error-message">{{ phone_number_error }}</p>
+          {% endif %}
         </div>
       </div>
       <div class="input-base-section">
         <div class="input-base-container">
           <p>Proof of Address</p>
-          <input id="proofofaddress" type="file" class="input-base-item" placeholder="Upload your proof of address" />
+          <input id="proof_of_address" name="proof_of_address" required type="file" class="input-base-item" placeholder="Upload your proof of address" autocomplete="off" />
         </div>
       </div>
-      <button class="submit-button">Submit Loan Request</button>
+      <button type="submit" class="submit-button">Submit Loan Request</button>
     </form>
     <div class="section">
       <h2>Provide a loan</h2>
       <p>
         Becoming a provider is as easy as filling in the details below, and waiting normally 1 business day for verification.<br />
-        Once done, you’ll have access to our catalogue of <a href="#" class="hide-decoration highlight-blue-small">professionally vetted</a> loan bids.
+        Once done, you'll have access to our catalogue of <a href="#" class="hide-decoration highlight-blue-small">professionally vetted</a> loan bids.
       </p>
     </div>
   </div>
+  <script>
+    const goToTop = document.getElementsByClassName('error-message')[0]
+    if (goToTop) {
+      goToTop.scrollIntoView({ behavior: 'instant', block: 'start' })
+    }
+  </script>
 {% endblock %}

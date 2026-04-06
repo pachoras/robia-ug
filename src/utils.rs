@@ -1,6 +1,8 @@
 use sha2::{Digest, Sha256};
 use std::io::{self};
 
+use rand::distr::{Alphanumeric, SampleString};
+
 /// Hashes a file using SHA-256 and returns the hash as a hexadecimal string.
 pub fn hash_string(path: &str) -> io::Result<String> {
     // Source - https://stackoverflow.com/a/69787984
@@ -16,13 +18,40 @@ pub fn hash_string(path: &str) -> io::Result<String> {
 /// The path to the CSS file. This is used as a constant for generating the cache-busted path.
 pub static CSS_PATH: &str = "/static/css/styles.css";
 
+// Generate a unique path for the CSS file using its content hash to enable cache busting
 pub fn generate_cache_busted_css_path() -> io::Result<String> {
-    // Generate a unique path for the CSS file using its content hash to enable cache busting
     let css_hash = hash_string("src/static/css/styles.css").unwrap();
     let static_css_path = format!("{}?v={}", CSS_PATH, css_hash);
     Ok(static_css_path)
 }
 
+// Generate a unique path for the JavaScript file using its content hash to enable cache busting
+pub fn generate_cache_busted_js_path() -> io::Result<String> {
+    let js_hash = hash_string("src/static/js/main.js").unwrap();
+    let static_js_path = format!("/static/js/main.js?v={}", js_hash);
+    Ok(static_js_path)
+}
+
+pub fn get_proof_of_address_path(user_id: &i32, format: &str) -> String {
+    format!("proof_of_address_{}.{}", user_id, format)
+}
+
+pub fn get_national_id_front_path(user_id: &i32, format: &str) -> String {
+    format!("national_id_front_{}.{}", user_id, format)
+}
+
+pub fn get_national_id_back_path(user_id: &i32, format: &str) -> String {
+    format!("national_id_back_{}.{}", user_id, format)
+}
+
+// Source - https://stackoverflow.com/a/72977937
+// Posted by Mari, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-04-04, License - CC BY-SA 4.0
+
+/// Generates a random alphanumeric string of the specified length.
+pub fn generate_random_string(length: usize) -> String {
+    Alphanumeric.sample_string(&mut rand::rng(), length)
+}
 #[cfg(test)]
 mod tests {
     use super::*;

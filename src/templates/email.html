@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Robia Loans platform for getting and providing loans."
+    />
+    <meta
+      name="keywords"
+      content="Robia Loans, loans, lending, borrowing, finance"
+    />
+    <title>{{ title }}</title>
+    <style>
+      body {
+        font-family: Inter, sans-serif;
+        background-color: #f9f9f9;
+        color: #333;
+        padding: 20px;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .email-header {
+        text-align: center;
+        margin-bottom: 20px;
+        flex-direction: row;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+      }
+      .email-header img {
+        height: 40px;
+      }
+      .email-body {
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .email-footer {
+        margin-top: 30px;
+        font-size: 12px;
+        color: #777;
+        text-align: center;
+      }
+      hr {
+        border: none;
+        border-top: 1px solid #eee;
+        margin: 20px 0;
+      }
+      .button {
+        display: inline-block;
+        padding: 5px 15px;
+        background-color: #ff1654;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 15px;
+        margin-top: 20px;
+      }
+      .right-margin {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <a href="/" class="logo"
+          ><img
+            height="24"
+            width="24"
+            src="https://robialabs.com/static/png/logo.png"
+            alt="Logo"
+            class="right-margin"
+        /></a>
+        <h3>Robia</h3>
+      </div>
+      <div class="email-body">
+        <h2>{{ title }}</h2>
+        <p>{{ message }}</p>
+        <div class="button-container">
+          <a href="{{ link }}" class="button">{{ action }}</a>
+        </div>
+      </div>
+      <hr />
+      <div class="email-footer">
+        <p>&copy; 2026 Robia Labs Ltd. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

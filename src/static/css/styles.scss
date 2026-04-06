@@ -34,15 +34,15 @@ $color-white: #fff;
 $color-black: #000000;
 $color-black-fade: #282828;
 $color-bg: #444140;
-$color-accent-red: #FF1654;
+$color-accent-red: #ff1654;
 $color-accent-red-fade: rgba($color-accent-red, 0.5);
-$color-accent-blue: #247BA0;
+$color-accent-blue: #247ba0;
 $color-grey: #aaaaaa;
 $color-grey-light: #e3e3e3;
 $color-login-grey: rgba(217, 217, 217, 0.25);
 
 // Font
-$font-family-base: 'Inter', sans-serif;
+$font-family-base: "Inter", sans-serif;
 
 // Border radius
 $radius-sm: 10px;
@@ -51,36 +51,35 @@ $radius-lg: 16px;
 
 // Shared patterns
 %highlight-base {
-    color: $color-white;
-    padding: 1rem;
-    margin-right: 1rem;
-    border-radius: $radius-md;
+  color: $color-white;
+  padding: 1rem;
+  margin-right: 1rem;
+  border-radius: $radius-md;
 }
 
 %heading-base {
-    font-weight: 500;
+  font-weight: 500;
 }
 
 %interactive-reset {
-    text-decoration: none;
-    color: inherit;
+  text-decoration: none;
+  color: inherit;
 }
 
 %flex-center {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 }
 
 %flex-column {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
-
 @mixin heading-size($size, $margin-bottom) {
-    @extend %heading-base;
-    font-size: $size;
-    margin-bottom: $margin-bottom;
+  @extend %heading-base;
+  font-size: $size;
+  margin-bottom: $margin-bottom;
 }
 
 /* ==========================================================================
@@ -88,30 +87,55 @@ $radius-lg: 16px;
     ========================================================================== */
 
 html {
-    font-family: $font-family-base;
-    color: $color-white;
-    background-color: $color-bg;
+  font-family: $font-family-base;
+  color: $color-white;
+  background: $color-bg;
+  background: linear-gradient(
+    180deg,
+    rgba(68, 65, 64, 1) 37%,
+    rgba(105, 39, 56, 1) 76%,
+    rgba(145, 11, 47, 1) 100%
+  );
+  min-height: 100%;
 }
 
 body {
-    margin: 0;
-    padding: 0;
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
 }
 
 main {
-    display: flex;
-    flex-direction: row;
+  display: flex;
+  flex-direction: row;
+  min-height: 100%;
 }
 
 .glass {
-    background: rgba($color-white, 0.22);
-    border-radius: $radius-lg;
-    box-shadow: 0 4px 30px rgba($color-black, 0.1);
-    backdrop-filter: blur(11px);
-    -webkit-backdrop-filter: blur(11px);
-    border: 1px solid rgba($color-white, 0.22);
-    color: $color-white;
-    margin: 0.5rem;
+  background: rgba($color-white, 0.22);
+  border-radius: $radius-lg;
+  box-shadow: 0 4px 30px rgba($color-black, 0.1);
+  backdrop-filter: blur(11px);
+  -webkit-backdrop-filter: blur(11px);
+  border: 1px solid rgba($color-white, 0.22);
+  color: $color-white;
+  margin: 0.5rem;
+}
+
+.generic-stroke {
+  border: 1px solid $color-white;
+}
+
+.muted-stroke {
+  border: 1px solid $color-grey;
+}
+
+.no-border {
+  border: none;
+}
+
+.muted-background {
+  background-color: $color-grey-light;
 }
 
 /* ==========================================================================
@@ -119,78 +143,78 @@ main {
     ========================================================================== */
 
 h1 {
-    @include heading-size(48px, 1rem);
+  @include heading-size(48px, 1rem);
 }
 
 h2 {
-    @include heading-size(2rem, 0.75rem);
+  @include heading-size(2rem, 0.75rem);
 }
 
 h3 {
-    @include heading-size(1.75rem, 0.5rem);
+  @include heading-size(1.75rem, 0.5rem);
 }
 
 h4 {
-    @include heading-size(1.5rem, 0.25rem);
+  @include heading-size(1.5rem, 0.25rem);
 }
 
 h5 {
-    @include heading-size(1.25rem, 0.125rem);
+  @include heading-size(1.25rem, 0.125rem);
 }
 
 h6 {
-    @include heading-size(1rem, 0.0625rem);
+  @include heading-size(1rem, 0.0625rem);
 }
 
 .shallow {
-    padding: 0;
-    margin: 0.5rem;
+  padding: 0;
+  margin: 0.5rem;
 }
 
 .hide-decoration {
-    @extend %interactive-reset;
-    flex: 1;
+  @extend %interactive-reset;
+  flex: 1;
 }
 
 .highlight {
-    @extend %highlight-base;
-    background-color: $color-black;
-    margin-left: 1rem;
-    flex: 1;
+  @extend %highlight-base;
+  background-color: $color-black;
+  margin-left: 1rem;
+  flex: 1;
 
-    &:hover {
-        background-color: $color-black-fade;
-        transition: color 0.3s ease;
-    }
+  &:hover {
+    background-color: $color-black-fade;
+    transition: color 0.3s ease;
+  }
 }
 
 .highlight-red {
-    @extend %highlight-base;
-    background-color: $color-accent-red;
+  @extend %highlight-base;
+  background-color: $color-accent-red;
 
-    &:hover {
-        background-color: $color-accent-red-fade;
-        transition: color 0.3s ease;
-    }
+  &:hover {
+    background-color: $color-accent-red-fade;
+    transition: color 0.3s ease;
+  }
 }
 
 .highlight-red-small {
-    @extend %highlight-base;
-    background-color: $color-accent-red;
-    padding: 0.125rem 0.5rem 0.125rem 0.5rem;
-    margin: 0;
+  @extend %highlight-base;
+  background-color: $color-accent-red;
+  padding: 0.125rem 0.5rem 0.125rem 0.5rem;
+  margin: 0;
 }
 
 .highlight-blue {
-    @extend %highlight-base;
-    background-color: $color-accent-blue;
+  @extend %highlight-base;
+  background-color: $color-accent-blue;
 }
 
 .highlight-blue-small {
-    @extend %highlight-base;
-    background-color: $color-accent-blue;
-    padding: 0.125rem 0.5rem 0.125rem 0.5rem;
-    margin: 0;
+  @extend %highlight-base;
+  background-color: $color-accent-blue;
+  padding: 0.125rem 0.5rem 0.125rem 0.5rem;
+  margin: 0;
 }
 
 /* ==========================================================================
@@ -198,100 +222,104 @@ h6 {
     ========================================================================== */
 
 .full-width {
-    width: 100%;
+  width: 100%;
 }
 
 .container {
-    @extend %flex-column;
-    justify-content: flex-start;
-    align-items: center;
-    padding: 1rem;
-    width: 60vw;
+  @extend %flex-column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 1rem;
+  width: 60vw;
+  height: 100%;
 }
 
 .container-side {
-    @extend %flex-center;
-    padding: 1rem;
-    width: 20vw;
+  @extend %flex-center;
+  padding: 1rem;
+  width: 20vw;
 }
 
 .section {
-    @extend %flex-column;
-    justify-content: flex-start;
-    width: 100%;
+  @extend %flex-column;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .introduction {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
 }
 
 .left-margin {
-    margin-left: 1rem;
+  margin-left: 1rem;
+}
+
+.right-margin {
+  margin-right: 1rem;
 }
 
 .login-container {
-    @extend %flex-column;
-    align-items: center;
-    background-color: $color-login-grey;
-    padding: 2rem;
-    border-radius: $radius-lg;
-    width: 300px;
+  @extend %flex-column;
+  align-items: center;
+  background-color: $color-login-grey;
+  padding: 2rem;
+  border-radius: $radius-lg;
+  width: 300px;
 }
 
 .error-popup {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba($color-black, 0.5);
-    z-index: 1000;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba($color-black, 0.5);
+  z-index: 1000;
 
-    &-center {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: flex-start;
-        height: 200px;
-        width: 500px;
-        background-color: $color-accent-red;
-        color: $color-white;
-        padding: 0.5rem 1rem;
-        border-radius: $radius-md;
-    }
+  &-center {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    height: 200px;
+    width: 500px;
+    background-color: $color-accent-red;
+    color: $color-white;
+    padding: 0.5rem 1rem;
+    border-radius: $radius-md;
+  }
 }
 
-
 .success-popup {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba($color-black, 0.5);
-    z-index: 1000;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba($color-black, 0.5);
+  z-index: 1000;
 
-    &-center {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: flex-start;
-        height: 200px;
-        width: 500px;
-        background-color: $color-accent-blue;
-        color: $color-white;
-        padding: 0.5rem 1rem;
-        border-radius: $radius-md;
-    }
+  &-center {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    height: 200px;
+    width: 500px;
+    background-color: $color-accent-blue;
+    color: $color-white;
+    padding: 0.5rem 1rem;
+    border-radius: $radius-md;
+  }
 }
 
 /* ==========================================================================
@@ -299,44 +327,49 @@ h6 {
     ========================================================================== */
 
 .menubar {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    margin-bottom: 1rem;
-    background-color: $color-black;
-    height: 2rem;
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin-bottom: 1rem;
+  background-color: $color-black;
+  height: 2rem;
 
-    &-logo {
-        @extend %flex-center;
+  &-logo {
+    @extend %flex-center;
+  }
+
+  &-button {
+    background-color: transparent;
+    border: none;
+    color: $color-white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: color 0.3s ease;
+
+    &:hover {
+      background-color: $color-white;
+      color: $color-black;
+      border-radius: $radius-sm;
+      padding: 0 0.25rem;
     }
 
-    &-button {
-        background-color: transparent;
-        border: none;
-        color: $color-white;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: color 0.3s ease;
-
-        &:hover {
-            background-color: $color-white;
-            color: $color-black;
-            border-radius: $radius-sm;
-            padding: 0 0.25rem;
-        }
-
-        &:active {
-            cursor: pointer;
-            background-color: $color-grey;
-        }
+    &:active {
+      cursor: pointer;
+      background-color: $color-grey;
     }
+  }
 }
 
 .logo {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: $color-white;
-    text-decoration: none;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: $color-white;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ==========================================================================
@@ -360,57 +393,107 @@ h6 {
     ========================================================================== */
 
 .input-base {
-    &:focus {
-        outline: none;
-        border-color: $color-black;
-        box-shadow: 0 0 5px rgba($color-black, 0.5);
-    }
+  &:focus {
+    outline: none;
+    border-color: $color-black;
+    box-shadow: 0 0 5px rgba($color-black, 0.5);
+  }
 
-    &-container {
-        @extend %flex-column;
-    }
+  &-container {
+    @extend %flex-column;
+  }
 
-    &-item {
-        @extend %flex-column;
-        margin-bottom: 1rem;
-        padding: 0.5rem;
-        background-color: $color-white;
-        color: $color-black;
-        border-radius: $radius-md;
-        border: none;
-        box-sizing: border-box;
-    }
+  &-item {
+    @extend %flex-column;
+    margin-bottom: 1rem;
+    padding: 0.7rem;
+    background-color: $color-white;
+    color: $color-black;
+    border-radius: $radius-md;
+    border: none;
+    box-sizing: border-box;
+    font-size: 1rem;
+  }
 
-    &-section {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-start;
-    }
+  &-section {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+  }
 }
 
 .error-message {
-    color: $color-accent-red;
-    font-size: 0.875rem;
-    margin-top: -0.5rem;
-    margin-bottom: 0.5rem;
+  color: $color-accent-red;
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .submit-button {
+  background-color: $color-accent-blue;
+  color: $color-white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: darken($color-accent-red, 10%);
+  }
+
+  &:active {
+    background-color: darken($color-accent-red, 20%);
+  }
+}
+
+// Login button group
+.login-button-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem;
+
+  &-loans {
     background-color: $color-accent-blue;
     color: $color-white;
-    border: none;
     padding: 0.5rem 1rem;
-    border-radius: $radius-md;
+    border-radius: $radius-md 0 0 $radius-md;
     cursor: pointer;
     transition: background-color 0.3s ease;
 
     &:hover {
-        background-color: darken($color-accent-red, 10%);
+      background-color: darken($color-accent-blue, 10%);
     }
 
     &:active {
-        background-color: darken($color-accent-red, 20%);
+      background-color: darken($color-accent-blue, 20%);
     }
+  }
+
+  &-pro {
+    background-color: $color-accent-red;
+    color: $color-white;
+    padding: 0.5rem 1rem;
+    border-radius: 0 $radius-md $radius-md 0;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+
+    &:hover {
+      background-color: darken($color-accent-red, 20%);
+    }
+
+    &:active {
+      background-color: darken($color-accent-red, 30%);
+    }
+  }
+}
+
+// Google Sign-In Button
+.gsi-button-container {
+  @extend %flex-center;
+  margin: 1rem;
 }
 
 /* ==========================================================================
@@ -474,20 +557,20 @@ h6 {
     19. Animations & Transitions
     ========================================================================== */
 .shrinking-horizontal-bar {
-    width: 100%;
-    height: 4px;
-    background-color: $color-white;
-    animation: shrink-horizontal 5s ease-in-out infinite;
+  width: 100%;
+  height: 4px;
+  background-color: $color-white;
+  animation: shrink-horizontal 10s ease-in-out infinite;
 
-    @keyframes shrink-horizontal {
-        0% {
-            width: 100%;
-        }
-
-        100% {
-            width: 0%;
-        }
+  @keyframes shrink-horizontal {
+    0% {
+      width: 100%;
     }
+
+    100% {
+      width: 0%;
+    }
+  }
 }
 
 /* ==========================================================================

@@ -1,139 +1,95 @@
+use crate::auth::verify_google_token;
+use crate::forms;
+use crate::models;
 use crate::renderer::{init_renderer, render_template};
-use crate::state::{self, AppState};
+use crate::state::AppState;
 use crate::utils;
-use crate::{auth, models};
 use axum::extract::{Multipart, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::http::StatusCode;
+use axum::http::status;
+use axum::response::{Html, IntoResponse, Json, Response};
+use serde_json::Value;
+use serde_json::json;
 
-/// Helper function to create a header map with the correct content type for HTML responses.
-fn get_headers() -> Result<HeaderMap, Box<dyn std::error::Error>> {
-    let mut headers = HeaderMap::new();
-    headers.insert("Content-Type", "text/html".parse()?);
-    Ok(headers)
-}
-
-pub async fn index(State(mut state): State<AppState>) -> impl IntoResponse {
+pub async fn index(State(mut state): State<AppState>) -> Result<Html<String>, AppError> {
     let mut context = std::collections::HashMap::new();
     context.insert("title".to_string(), "Robia Labs Ltd".to_string());
 
-    let result = render_template(&mut state.tera, "src/templates/index.html", &context);
-    if result.is_err() {
-        return Err(AppError(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Some(result.err().unwrap()),
-        ));
+    match render_template(&mut state.tera, "src/templates/index.html", &context) {
+        Ok(content) => Ok(Html(content)),
+        Err(e) => {
+            log::error!("Error rendering template: {}", e);
+            return Err(AppError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Some("Could not render response at this time.".to_string()),
+            ));
+        }
     }
-    let content = result.unwrap();
-
-    Ok((get_headers().unwrap_or_else(|_| HeaderMap::new()), content))
 }
 
-/// Helper function to extract and validate registration form data from the multipart request.
-async fn get_registration_data(
-    mut multipart: Multipart,
-) -> Result<(models::UserData, models::UserProfileData), std::collections::HashMap<String, String>>
-{
-    let mut user_data = models::UserData::new();
-    let mut profile_data = models::UserProfileData::new();
-    let mut context = std::collections::HashMap::new();
-    while let Some(field) = multipart.next_field().await.unwrap() {
-        // Get form fields
-        let name = field.name().unwrap().to_string();
-        let data = field.bytes().await.unwrap();
-
-        if name == "email" {
-            user_data.email = String::from_utf8(data.to_vec()).unwrap();
-            if user_data.email.is_empty() {
-                context.insert("email_error".to_string(), "Email is required".to_string());
-                context.insert("errors".to_string(), "true".to_string());
-            }
-        }
-        if name == "full_name" {
-            profile_data.full_name = String::from_utf8(data.to_vec()).unwrap();
-            if profile_data.full_name.is_empty() {
-                context.insert(
-                    "full_name_error".to_string(),
-                    "Full name is required".to_string(),
-                );
-                context.insert("errors".to_string(), "true".to_string());
-            }
-        }
-        if name == "national_id" {
-            profile_data.national_id = String::from_utf8(data.to_vec()).unwrap();
-            if profile_data.national_id.is_empty() {
-                context.insert(
-                    "national_id_error".to_string(),
-                    "National ID is required".to_string(),
-                );
-                context.insert("errors".to_string(), "true".to_string());
-            }
-        }
-        if name == "phone_number" {
-            profile_data.phone_number = String::from_utf8(data.to_vec()).unwrap();
-            if profile_data.phone_number.is_empty() {
-                context.insert(
-                    "phone_number_error".to_string(),
-                    "Phone number is required".to_string(),
-                );
-                context.insert("errors".to_string(), "true".to_string());
-            }
-        }
-        if name == "proof_of_address" {
-            // TODO: Implement file upload
-            profile_data.proof_of_address = "somefile".to_string();
-            // If file upload fails, add an error to the context
-            if profile_data.proof_of_address.is_empty() {
-                context.insert(
-                    "proof_of_address_error".to_string(),
-                    "Proof of address is required".to_string(),
-                );
-                context.insert("errors".to_string(), "true".to_string());
-            }
-            // Handle file upload (e.g., save to cloud storage)
-        }
-    }
-    if context.contains_key("errors") {
-        return Err(context);
-    }
-    Ok((user_data, profile_data))
-}
-
-pub async fn register_loan(
-    State(mut state): State<state::AppState>,
+pub async fn submit_loan_application(
+    State(mut state): State<AppState>,
     multipart: Multipart,
-) -> impl IntoResponse {
-    // Validate form fields and handle file uploads
-    let result = get_registration_data(multipart).await;
-    if result.is_err() {
-        let mut context = result.err().unwrap();
-        context.insert("title".to_string(), "Robia Labs Ltd".to_string());
-        log::warn!("Validation errors: {:?}", context);
-
-        let res = render_template(&mut state.tera, "src/templates/index.html", &context);
-        return Ok((
-            get_headers().unwrap_or_else(|_| HeaderMap::new()),
-            res.unwrap(),
-        ));
-    }
-    let (user_data, mut profile_data) = result.unwrap();
-
+) -> Result<Html<String>, AppError> {
+    // Create contexts
     let mut context = std::collections::HashMap::new();
     context.insert("title".to_string(), "Robia Labs Ltd".to_string());
+
+    // Validate form fields
+    let (user_data, mut profile_data) =
+        match forms::get_seeker_registration_form_data(multipart).await {
+            Ok(data) => data,
+            Err(e) => {
+                log::warn!("Form validation error: {}", e);
+                context.insert("error_popup".to_string(), e.to_string());
+                let res = render_template(&mut state.tera, "src/templates/index.html", &context);
+                return Ok(Html(res.unwrap()));
+            }
+        };
+
+    // Check if user with phone number or national ID already exists
+    match models::UserProfile::find_by_phone_number(&state.pool, &profile_data.phone_number).await {
+        Ok(existing_profile) => {
+            log::warn!(
+                "User with phone number {} already exists.\n Please log in instead.",
+                existing_profile.phone_number
+            );
+            context.insert(
+                "error_popup".to_string(),
+                "A user with this phone number already exists.".to_string(),
+            );
+            let res = render_template(&mut state.tera, "src/templates/index.html", &context);
+            return Ok(Html(res.unwrap()));
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // No user with this phone number, continue
+        }
+        Err(e) => {
+            log::error!(
+                "Database error checking for existing user by phone number: {}",
+                e
+            );
+            context.insert(
+                "error_popup".to_string(),
+                "Could not check for existing user at this time.".to_string(),
+            );
+            let res = render_template(&mut state.tera, "src/templates/index.html", &context);
+            return Ok(Html(res.unwrap()));
+        }
+    }
 
     // Create user
-    match models::User::create(&state.pool, &user_data).await {
+    match models::User::create_with_email(&state.pool, &user_data.email).await {
         Ok(user) => {
             log::info!("Created user with ID: {}", user.id);
             // Create user profile
             profile_data.user_id = user.id;
-            match models::UserProfile::create(&state.pool, &profile_data).await {
+            match models::UserProfile::create(&state.pool, &state.s3_client, &profile_data).await {
                 Ok(profile) => {
                     log::info!("Created user profile for user ID: {}", profile.user_id);
-                    // Redirect to loan application page after successful registration
                     context.insert(
                     "success_popup".to_string(),
-                    "Your loan application has been submitted, please check your email for further instructions."
+                    "Your loan application has been received, please check your email for further instructions."
                         .to_string(),
                     );
                 }
@@ -151,7 +107,7 @@ pub async fn register_loan(
                     log::error!("Error creating user profile: {}", e);
                     context.insert(
                         "error_popup".to_string(),
-                        "A user with this profile already exists.".to_string(),
+                        "Could not create user profile at this time.".to_string(),
                     );
                 }
             }
@@ -169,42 +125,127 @@ pub async fn register_loan(
             log::error!("Unexpected error creating user: {}", e);
             context.insert(
                 "error_popup".to_string(),
-                "A user with this profile already exists.".to_string(),
+                "Could not create user at this time.".to_string(),
             );
         }
     }
 
-    let result = render_template(&mut state.tera, "src/templates/index.html", &context);
-    if result.is_err() {
-        return Err(AppError(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Some(result.err().unwrap()),
-        ));
+    // Render response
+    match render_template(&mut state.tera, "src/templates/index.html", &context) {
+        Ok(content) => Ok(Html(content)),
+        Err(e) => {
+            log::error!("Error rendering template: {}", e);
+            return Err(AppError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Some("Could not render response at this time.".to_string()),
+            ));
+        }
     }
-    let content = result.unwrap();
-    Ok((get_headers().unwrap_or_else(|_| HeaderMap::new()), content))
 }
 
-pub async fn loan_application(
-    State(mut state): State<state::AppState>,
-    auth::ExtractAuthenticationCode(_auth): auth::ExtractAuthenticationCode,
-) -> impl IntoResponse {
-    let context = std::collections::HashMap::new();
+pub async fn login_page(State(mut state): State<AppState>) -> Result<Html<String>, AppError> {
+    let mut context = std::collections::HashMap::new();
+    context.insert("title".to_string(), "Login".to_string());
 
-    let result = render_template(
-        &mut state.tera,
-        "src/templates/loan_application.html",
-        &context,
-    );
-    if result.is_err() {
-        return Err(AppError(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Some(result.err().unwrap()),
-        ));
+    match render_template(&mut state.tera, "src/templates/login.html", &context) {
+        Ok(content) => Ok(Html(content)),
+        Err(e) => {
+            return Err(AppError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Some(e.to_string()),
+            ));
+        }
     }
-    let content = result.unwrap();
+}
 
-    Ok((get_headers().unwrap_or_else(|_| HeaderMap::new()), content))
+pub async fn login_google(
+    State(state): State<AppState>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    // Decode JWT and get aud claim
+    match payload.get("token").and_then(|v| v.as_str()) {
+        Some(token) => {
+            match verify_google_token(token).await {
+                Ok(claims) => {
+                    // Check if user with email exists in database
+                    match models::User::find_by_email(&state.pool, &claims.email).await {
+                        Ok(profile) => {
+                            log::info!(
+                                "User with email {} found, ID: {}",
+                                claims.email,
+                                profile.user_id
+                            );
+                            // If user exists, create auth token and return it in response
+                            let app = payload
+                                .get("app")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("loans");
+                            let user_auth_token = models::UserAuthToken::new(
+                                profile.user_id,
+                                app.to_string(),
+                                utils::generate_random_string(32),
+                            );
+                            match models::UserAuthToken::create(&state.pool, &user_auth_token).await
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    log::error!("Error creating user auth token: {}", e);
+                                    return Json(
+                                        json!({"status": "ERROR", "error": "Could not create auth token at this time."}),
+                                    );
+                                }
+                            };
+                            // Also save user google id in database for future reference
+                            let mut update_profile = profile.clone();
+                            update_profile.google_id = Some(claims.sub.clone());
+                            match models::UserProfile::update(
+                                &state.pool,
+                                update_profile.id,
+                                &update_profile,
+                            )
+                            .await
+                            {
+                                Ok(_) => {
+                                    return Json(
+                                        json!({"status": "OK", "auth_token": &user_auth_token.token}),
+                                    );
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "Error updating Google ID for user with email {}: {}",
+                                        claims.email,
+                                        e
+                                    );
+                                    return Json(
+                                        json!({"status": "ERROR", "error": "Could not update user profile with Google ID."}),
+                                    );
+                                }
+                            }
+                        }
+                        Err(sqlx::Error::RowNotFound) => {
+                            return Json(
+                                json!({"status": "NOT_FOUND", "error": "No user with this email found. Please sign up first."}),
+                            );
+                        }
+                        Err(e) => {
+                            log::error!("Database error checking for user by email: {}", e);
+                            return Json(
+                                json!({"status": "ERROR", "error": "Could not check for user at this time."}),
+                            );
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!("Error decoding JWT: {}", err);
+                    return Json(json!({"status": "ERROR", "error": "Invalid token"}));
+                }
+            }
+        }
+        None => {
+            log::error!("Missing token in request payload");
+            return Json(json!({"status": "MISSING", "error": "Missing token"}));
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -246,6 +287,7 @@ impl IntoResponse for AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::files;
     use crate::renderer::init_renderer;
     use crate::state::AppState;
     use axum::body::to_bytes;
@@ -258,13 +300,8 @@ mod tests {
             pool: sqlx::PgPool::connect("postgres://user:password@localhost/test_db")
                 .await
                 .unwrap(),
+            s3_client: files::initialize_s3_client().await,
         }
-    }
-
-    #[test]
-    fn get_headers_sets_html_content_type() {
-        let headers = get_headers().unwrap();
-        assert_eq!(headers.get("content-type").unwrap(), "text/html");
     }
 
     #[tokio::test]

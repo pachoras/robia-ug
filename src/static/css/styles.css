@@ -43,7 +43,7 @@ h6, h5, h4, h3, h2, h1 {
   color: inherit;
 }
 
-.menubar-logo, .container-side {
+.gsi-button-container, .menubar-logo, .container-side {
   display: flex;
   align-items: center;
 }
@@ -59,17 +59,21 @@ h6, h5, h4, h3, h2, h1 {
 html {
   font-family: "Inter", sans-serif;
   color: #fff;
-  background-color: #444140;
+  background: #444140;
+  background: linear-gradient(180deg, rgb(68, 65, 64) 37%, rgb(105, 39, 56) 76%, rgb(145, 11, 47) 100%);
+  min-height: 100%;
 }
 
 body {
   margin: 0;
   padding: 0;
+  min-height: 100%;
 }
 
 main {
   display: flex;
   flex-direction: row;
+  min-height: 100%;
 }
 
 .glass {
@@ -81,6 +85,22 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.22);
   color: #fff;
   margin: 0.5rem;
+}
+
+.generic-stroke {
+  border: 1px solid #fff;
+}
+
+.muted-stroke {
+  border: 1px solid #aaaaaa;
+}
+
+.no-border {
+  border: none;
+}
+
+.muted-background {
+  background-color: #e3e3e3;
 }
 
 /* ==========================================================================
@@ -136,7 +156,7 @@ h6 {
 }
 
 .highlight-red {
-  background-color: #FF1654;
+  background-color: #ff1654;
 }
 .highlight-red:hover {
   background-color: rgba(255, 22, 84, 0.5);
@@ -144,17 +164,17 @@ h6 {
 }
 
 .highlight-red-small {
-  background-color: #FF1654;
+  background-color: #ff1654;
   padding: 0.125rem 0.5rem 0.125rem 0.5rem;
   margin: 0;
 }
 
 .highlight-blue {
-  background-color: #247BA0;
+  background-color: #247ba0;
 }
 
 .highlight-blue-small {
-  background-color: #247BA0;
+  background-color: #247ba0;
   padding: 0.125rem 0.5rem 0.125rem 0.5rem;
   margin: 0;
 }
@@ -171,6 +191,7 @@ h6 {
   align-items: center;
   padding: 1rem;
   width: 60vw;
+  height: 100%;
 }
 
 .container-side {
@@ -192,6 +213,10 @@ h6 {
 
 .left-margin {
   margin-left: 1rem;
+}
+
+.right-margin {
+  margin-right: 1rem;
 }
 
 .login-container {
@@ -221,7 +246,7 @@ h6 {
   align-items: flex-start;
   height: 200px;
   width: 500px;
-  background-color: #FF1654;
+  background-color: #ff1654;
   color: #fff;
   padding: 0.5rem 1rem;
   border-radius: 15px;
@@ -246,7 +271,7 @@ h6 {
   align-items: flex-start;
   height: 200px;
   width: 500px;
-  background-color: #247BA0;
+  background-color: #247ba0;
   color: #fff;
   padding: 0.5rem 1rem;
   border-radius: 15px;
@@ -256,6 +281,8 @@ h6 {
     5. Header
     ========================================================================== */
 .menubar {
+  position: sticky;
+  top: 0;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -287,6 +314,9 @@ h6 {
   font-weight: 600;
   color: #fff;
   text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ==========================================================================
@@ -311,12 +341,13 @@ h6 {
 }
 .input-base-item {
   margin-bottom: 1rem;
-  padding: 0.5rem;
+  padding: 0.7rem;
   background-color: #fff;
   color: #000000;
   border-radius: 15px;
   border: none;
   box-sizing: border-box;
+  font-size: 1rem;
 }
 .input-base-section {
   display: flex;
@@ -325,14 +356,14 @@ h6 {
 }
 
 .error-message {
-  color: #FF1654;
+  color: #ff1654;
   font-size: 0.875rem;
   margin-top: -0.5rem;
   margin-bottom: 0.5rem;
 }
 
 .submit-button {
-  background-color: #247BA0;
+  background-color: #247ba0;
   color: #fff;
   border: none;
   padding: 0.5rem 1rem;
@@ -345,6 +376,46 @@ h6 {
 }
 .submit-button:active {
   background-color: rgb(175, 0, 46.5665236052);
+}
+
+.login-button-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem;
+}
+.login-button-group-loans {
+  background-color: #247ba0;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 15px 0 0 15px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.login-button-group-loans:hover {
+  background-color: rgb(26.6326530612, 90.9948979592, 118.3673469388);
+}
+.login-button-group-loans:active {
+  background-color: rgb(17.2653061224, 58.9897959184, 76.7346938776);
+}
+.login-button-group-pro {
+  background-color: #ff1654;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0 15px 15px 0;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.login-button-group-pro:hover {
+  background-color: rgb(175, 0, 46.5665236052);
+}
+.login-button-group-pro:active {
+  background-color: rgb(124, 0, 32.9957081545);
+}
+
+.gsi-button-container {
+  margin: 1rem;
 }
 
 /* ==========================================================================
@@ -397,7 +468,7 @@ h6 {
   width: 100%;
   height: 4px;
   background-color: #fff;
-  animation: shrink-horizontal 5s ease-in-out infinite;
+  animation: shrink-horizontal 10s ease-in-out infinite;
 }
 @keyframes shrink-horizontal {
   0% {

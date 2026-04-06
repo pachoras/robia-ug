@@ -1,114 +1,223 @@
-{% extends 'base.html' %}
-
-{% block content %}
-  <div>
-    <h1>Robia Loans</h1>
-    <h2>Where <u>approved</u> loan seekers meet <u>verified</u> providers</h2>
-    <div class="introduction">
-      <h5>Need a loan?</h5>
+{% extends 'base.html' %} {% block content %}
+<div>
+  <h1>Robia Loans</h1>
+  <h2>Where <u>approved</u> loan seekers meet <u>verified</u> providers</h2>
+  <div class="introduction">
+    <h5>Need a loan?</h5>
+    <a href="#quick-loan" class="hide-decoration">
       <h5 class="highlight">
-        Sign up <a href="#quick-loan" class="hide-decoration">
-          <u>here</u><svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#e3e3e3">
-            <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z" />
-          </svg>
-        </a>
+        Sign up
+
+        <u>here</u
+        ><svg
+          xmlns="http://www.w3.org/2000/svg"
+          height="18px"
+          viewBox="0 -960 960 960"
+          width="18px"
+          fill="#e3e3e3"
+        >
+          <path
+            d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"
+          />
+        </svg></h5
+    ></a>
+  </div>
+  <div class="introduction">
+    <a href="#provide-loan" class="hide-decoration">
+      <h5 class="highlight-red">
+        Looking for <u>customers?</u
+        ><svg
+          xmlns="http://www.w3.org/2000/svg"
+          height="18px"
+          viewBox="0 -960 960 960"
+          width="18px"
+          fill="#e3e3e3"
+        >
+          <path
+            d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"
+          />
+        </svg>
       </h5>
-    </div>
-    <div class="introduction">
-      <h5 class="highlight-red">Looking for customers?</h5>
-      <h5>
-        Become a <a href="#" class="hide-decoration">
-          <u>provider</u><svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#e3e3e3">
-            <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z" />
-          </svg>
-        </a>
-      </h5>
-    </div>
-    <form action="/register-loan" method="post" enctype="multipart/form-data">
-      <div class="section" id="quick-loan">
-        <h2>Quick loan form</h2>
-        <p>
-          Get a loan quickly from one of our many <a href="#" class="hide-decoration highlight-red-small">verified providers</a>. Fill out the form below to get started.<br />Once you're approved, you'll receive bids for this loan. Compare them to decide which is the most favourable, select one and that’s all!
-        </p>
-      </div>
-      <div class="input-base-section">
-        <div class="input-base-container">
-          <p>Loan Amount</p>
-          <input id="loan_amount" name="loan_amount" required type="number" class="input-base-item" placeholder="200,000" autocomplete="off" />
-          {% if loan_amount_error %}
-            <p class="error-message">{{ loan_amount_error }}</p>
-          {% endif %}
-        </div>
-        <div class="input-base-container left-margin">
-          <p>Loan Duration</p>
-          <input id="loan_duration" name="loan_duration" required type="text" class="input-base-item" placeholder="2 months" autocomplete="off" />
-          {% if loan_duration_error %}
-            <p class="error-message">{{ loan_duration_error }}</p>
-          {% endif %}
-        </div>
-      </div>
-      <div class="input-base-section">
-        <div class="input-base-container">
-          <p>Desired Interest</p>
-          <input id="desired_interest" name="desired_interest" required type="number" class="input-base-item" placeholder="20%" autocomplete="off" />
-          {% if desired_interest_error %}
-            <p class="error-message">{{ desired_interest_error }}</p>
-          {% endif %}
-        </div>
-      </div>
-      <h4>Personal Details</h4>
-      <div class="input-base-section">
-        <div class="input-base-container">
-          <p>Full Name</p>
-          <input id="full_name" name="full_name" required type="text" class="input-base-item" placeholder="Enter your full name" autocomplete="name" />
-          {% if full_name_error %}
-            <p class="error-message">{{ full_name_error }}</p>
-          {% endif %}
-        </div>
-        <div class="input-base-container left-margin">
-          <p>Email Address</p>
-          <input id="email" name="email" required type="email" class="input-base-item" placeholder="Enter your email address" autocomplete="email" />
-          {% if email_error %}
-            <p class="error-message">{{ email_error }}</p>
-          {% endif %}
-        </div>
-      </div>
-      <div class="input-base-section">
-        <div class="input-base-container">
-          <p>National ID</p>
-          <input id="national_id" name="national_id" required type="text" class="input-base-item" placeholder="CM12345678CNNK" autocomplete="off" />
-          {% if national_id_error %}
-            <p class="error-message">{{ national_id_error }}</p>
-          {% endif %}
-        </div>
-        <div class="input-base-container left-margin">
-          <p>Phone Number</p>
-          <input id="phone_number" name="phone_number" required type="tel" class="input-base-item" placeholder="2567xxxxxxx" autocomplete="tel" />
-          {% if phone_number_error %}
-            <p class="error-message">{{ phone_number_error }}</p>
-          {% endif %}
-        </div>
-      </div>
-      <div class="input-base-section">
-        <div class="input-base-container">
-          <p>Proof of Address</p>
-          <input id="proof_of_address" name="proof_of_address" required type="file" class="input-base-item" placeholder="Upload your proof of address" autocomplete="off" />
-        </div>
-      </div>
-      <button type="submit" class="submit-button">Submit Loan Request</button>
-    </form>
-    <div class="section">
-      <h2>Provide a loan</h2>
+    </a>
+    <h5>
+      Become a
+      <a href="#" class="hide-decoration"> provider </a>
+    </h5>
+  </div>
+  <form action="/register-loan" method="post" enctype="multipart/form-data">
+    <div class="section" id="quick-loan">
+      <h2>Quick loan form</h2>
       <p>
-        Becoming a provider is as easy as filling in the details below, and waiting normally 1 business day for verification.<br />
-        Once done, you'll have access to our catalogue of <a href="#" class="hide-decoration highlight-blue-small">professionally vetted</a> loan bids.
+        Get a loan quickly from one of our many
+        <a href="#" class="hide-decoration highlight-red-small"
+          >verified providers</a
+        >. Fill out the form below to get started.<br />Once you're approved,
+        you'll receive bids for this loan. Compare them to decide which is the
+        most favourable, select one and that’s all!
       </p>
     </div>
+    <div class="input-base-section">
+      <div class="input-base-container">
+        <p>Loan Amount</p>
+        <input
+          id="loan_amount"
+          name="loan_amount"
+          required
+          type="number"
+          class="input-base-item"
+          placeholder="200,000"
+          autocomplete="off"
+          min="100000"
+          max="10000000"
+        />
+        {% if loan_amount_error %}
+        <p class="error-message">{{ loan_amount_error }}</p>
+        {% endif %}
+      </div>
+      <div class="input-base-container left-margin">
+        <p>Loan Duration</p>
+        <input
+          id="loan_duration"
+          name="loan_duration"
+          required
+          type="number"
+          class="input-base-item"
+          placeholder="2 months"
+          autocomplete="off"
+          min="1"
+          max="60"
+        />
+        {% if loan_duration_error %}
+        <p class="error-message">{{ loan_duration_error }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="input-base-section">
+      <div class="input-base-container">
+        <p>Desired Interest</p>
+        <input
+          id="desired_interest"
+          name="desired_interest"
+          required
+          type="number"
+          class="input-base-item"
+          placeholder="20%"
+          autocomplete="off"
+          min="5"
+          max="100"
+        />
+        {% if desired_interest_error %}
+        <p class="error-message">{{ desired_interest_error }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <h4>Personal Details</h4>
+    <div class="input-base-section">
+      <div class="input-base-container">
+        <p>Full Name</p>
+        <input
+          id="full_name"
+          name="full_name"
+          required
+          type="text"
+          class="input-base-item"
+          placeholder="Enter your full name"
+          autocomplete="name"
+        />
+        {% if full_name_error %}
+        <p class="error-message">{{ full_name_error }}</p>
+        {% endif %}
+      </div>
+      <div class="input-base-container left-margin">
+        <p>Email Address</p>
+        <input
+          id="email"
+          name="email"
+          required
+          type="email"
+          class="input-base-item"
+          placeholder="Enter your email address"
+          autocomplete="email"
+        />
+        {% if email_error %}
+        <p class="error-message">{{ email_error }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="input-base-section">
+      <div class="input-base-container">
+        <p>Phone Number</p>
+        <input
+          id="phone_number"
+          name="phone_number"
+          required
+          type="tel"
+          class="input-base-item"
+          placeholder="2567xxxxxxx"
+          autocomplete="tel"
+        />
+        {% if phone_number_error %}
+        <p class="error-message">{{ phone_number_error }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="input-base-section">
+      <div class="input-base-container">
+        <p>Proof of Address</p>
+        <input
+          id="proof_of_address"
+          name="proof_of_address"
+          required
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          class="input-base-item"
+        />
+      </div>
+    </div>
+    <div class="input-base-section">
+      <div class="input-base-container right-margin">
+        <p>National ID Front</p>
+        <input
+          id="national_id_front"
+          name="national_id_front"
+          required
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          class="input-base-item"
+        />
+        {% if national_id_front_error %}
+        <p class="error-message">{{ national_id_front_error }}</p>
+        {% endif %}
+      </div>
+      <div class="input-base-container">
+        <p>National ID Back</p>
+        <input
+          id="national_id_back"
+          name="national_id_back"
+          required
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          class="input-base-item"
+        />
+        {% if national_id_back_error %}
+        <p class="error-message">{{ national_id_back_error }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <button type="submit" class="submit-button">Submit Loan Request</button>
+  </form>
+  <div class="section">
+    <h2>Provide a loan</h2>
+    <p>
+      Becoming a provider is as easy as filling in the details below, and
+      waiting normally 1 business day for verification.<br />
+      Once done, you'll have access to our catalogue of
+      <a href="#" class="hide-decoration highlight-blue-small"
+        >professionally vetted</a
+      >
+      loan bids.
+    </p>
   </div>
-  <script>
-    const goToTop = document.getElementsByClassName('error-message')[0]
-    if (goToTop) {
-      goToTop.scrollIntoView({ behavior: 'instant', block: 'start' })
-    }
-  </script>
+</div>
+
 {% endblock %}

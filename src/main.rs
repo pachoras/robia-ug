@@ -1,8 +1,12 @@
 mod auth;
 mod files;
+mod forms;
+mod mail;
+mod middleware;
 mod models;
 mod renderer;
 mod routes;
+mod session;
 mod state;
 mod utils;
 
@@ -30,9 +34,11 @@ async fn main() {
 
     // Create the application state
     let tera = renderer::init_renderer();
+    let s3_client = files::initialize_s3_client().await;
     let state = state::AppState {
-        tera: tera,
-        pool: pool,
+        tera,
+        pool,
+        s3_client,
     };
     let app = init_router(state);
 
@@ -51,8 +57,9 @@ fn init_router(state: state::AppState) -> Router {
 
     Router::new()
         .route("/", get(routes::index))
-        .route("/register-loan", post(routes::register_loan))
-        .route("/app", get(routes::loan_application))
+        .route("/register-loan", post(routes::submit_loan_application))
+        .route("/login", get(routes::login_page))
+        .route("/login-google", post(routes::login_google))
         .nest_service("/static", ServeDir::new("src/static"))
         .with_state(state)
         .layer(DefaultBodyLimit::disable())
@@ -64,6 +71,9 @@ fn init_router(state: state::AppState) -> Router {
                         .allow_methods(tower_http::cors::Any)
                         .allow_headers(tower_http::cors::Any),
                 )
+                .layer(axum::middleware::from_fn(middleware::default_headers))
+                .layer(axum::middleware::from_fn(middleware::security_headers))
+                .layer(axum::middleware::from_fn(middleware::cache_control_headers))
                 .layer(CompressionLayer::new()),
         )
 }

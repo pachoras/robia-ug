@@ -13,7 +13,7 @@ A Rust web server for Robia Labs Ltd, built with [Axum](https://github.com/tokio
 ## Routes
 
 | Method | Path      | Auth required | Description              |
-|--------|-----------|---------------|--------------------------|
+| ------ | --------- | ------------- | ------------------------ |
 | GET    | `/`       | No            | Landing page             |
 | GET    | `/app`    | Yes (Bearer)  | Loan application page    |
 | GET    | `/static` | No            | Static assets (CSS, etc) |
@@ -29,6 +29,24 @@ Migrations are run automatically on startup. The schema (see [migrations/](migra
 - Rust (edition 2024)
 - PostgreSQL
 - `sass` CLI (`npm install -g sass`)
+- S3 Compatible object store. We are using [RustFS](https://rustfs.com/) for this project. You can install it using:
+
+```bash
+mkdir -p $HOME/rustfs/data
+chown -R 10001:10001 $HOME/rustfs/data
+
+docker run -d \
+  --name rustfs_container \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  -v $HOME/rustfs/data:/data \
+  -e RUSTFS_ACCESS_KEY=rustfsadmin \
+  -e RUSTFS_SECRET_KEY=rustfsadmin \
+  -e RUSTFS_CONSOLE_ENABLE=true \
+  -e RUSTFS_SERVER_DOMAINS=localhost \
+  rustfs/rustfs:latest \
+  /data
+```
 
 ## Development
 
@@ -39,6 +57,7 @@ Migrations are run automatically on startup. The schema (see [migrations/](migra
    source .env
    set +a
    ```
+
 2. Create the database (also runs migrations)
    ```sh
    cargo sqlx database create

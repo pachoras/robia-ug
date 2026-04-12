@@ -1,3 +1,72 @@
+// HTML for additional file upload element
+let additionalFileHTML = `
+<div class="input-base-container" id="input_name">
+  <p>Additional File</p>
+  <div class="additional-file-input">
+    <input
+      id="input_name"
+      name="input_name"
+      required
+      type="file"
+      accept=".pdf,.jpg,.jpeg,.png"
+      class="input-base-item right-margin"
+    />
+    <span class="additional-file-input-section" id="upload_name-remove-button">
+    </span>
+  </div>
+</div>
+`;
+
+// random number util
+const getRandomNumber = (min, max) => {
+  return Math.floor(Math.random() * (max - min) + min);
+};
+
+// Add file upload elements if button selected
+if (
+  window.location.pathname === "/" ||
+  window.location.pathname === "/register-loan"
+) {
+  const uploadAdditionalFile = document.getElementById(
+    "upload-additional-file",
+  );
+
+  uploadAdditionalFile.addEventListener("click", () => {
+    let itemid = `additional_file_${getRandomNumber(1, 1000000)}`;
+    let removeButtonId = `remove_additional_file_${getRandomNumber(1, 1000000)}`;
+
+    // Create new remove button element
+    let newRemoveButtonContainer = document.createElement("span");
+    newRemoveButtonContainer.classList.add("additional-file-input-section");
+    newRemoveButtonContainer.id = `${removeButtonId}-container`;
+    let newRemoveButton = document.createElement("button");
+    newRemoveButton.id = removeButtonId;
+    newRemoveButton.classList.add("upload-button");
+    newRemoveButton.type = "button";
+    newRemoveButton.innerText = "Remove additional file";
+    // Add event listener to new remove button
+    newRemoveButton.addEventListener("click", () => {
+      document.getElementById(itemid).remove();
+    });
+    newRemoveButtonContainer.appendChild(newRemoveButton);
+
+    // Add new file input element, with remove button
+    let inputBaseContainer = document.createElement("div");
+    inputBaseContainer.id = itemid;
+    inputBaseContainer.classList.add("input-base-container");
+    inputBaseContainer.innerHTML = additionalFileHTML
+      .replace(/input_name/g, itemid)
+      .replace(/upload_name/g, removeButtonId);
+    inputBaseContainer
+      .getElementsByTagName("span")[0]
+      .appendChild(newRemoveButton);
+
+    const additionalFileContainer = document.getElementById(
+      "additional-file-container",
+    );
+    additionalFileContainer.appendChild(inputBaseContainer);
+  });
+}
 // Hide success popups after 10 seconds
 const successPopup = document.getElementsByClassName("success-popup")[0];
 if (successPopup) {
@@ -21,7 +90,7 @@ if (errorPopup) {
 }
 
 // HTML for success popup
-let successPopupHTML = ```
+let successPopupHTML = `
 <div class="success-popup">
   <div class="success-popup-center">
     <div>
@@ -41,7 +110,7 @@ let successPopupHTML = ```
     <div class="shrinking-horizontal-bar"></div>
   </div>
 </div>
-```;
+`;
 
 // Google Sign-In
 function handleCredentialResponse(response) {
@@ -124,10 +193,12 @@ function selectButton(button) {
 }
 
 window.onload = () => {
-  document
-    .getElementById("login-button-loans")
-    .addEventListener("click", () => selectButton("loans"));
-  document
-    .getElementById("login-button-pro")
-    .addEventListener("click", () => selectButton("pro"));
+  if (window.location.pathname === "/login") {
+    document
+      .getElementById("login-button-loans")
+      .addEventListener("click", () => selectButton("loans"));
+    document
+      .getElementById("login-button-pro")
+      .addEventListener("click", () => selectButton("pro"));
+  }
 };

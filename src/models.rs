@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::hash::Hash;
+
 use axum::body::Bytes;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -149,7 +152,7 @@ impl User {
         });
         Ok(user)
     }
-        /// Finds a user profile by its email. Returns an error if not found or if there's a database issue.
+    /// Finds a user profile by its email. Returns an error if not found or if there's a database issue.
     pub async fn find_by_email(
         pool: &sqlx::PgPool,
         email: &String,
@@ -175,6 +178,7 @@ pub struct UserProfileData {
     pub national_id_front: Vec<u8>,
     pub national_id_front_file_format: String,
     pub google_id: Option<String>,
+    pub additional_files: Option<HashMap<String, Vec<u8>>>,
 }
 
 impl UserProfileData {
@@ -191,6 +195,7 @@ impl UserProfileData {
             national_id_front: Vec::new(),
             national_id_front_file_format: String::new(),
             google_id: None,
+            additional_files: None,
         }
     }
 }
@@ -242,15 +247,15 @@ impl UserProfile {
     ) -> Result<UserProfile, sqlx::Error> {
         let mut tx = pool.begin().await?;
         // Get correct file names for proof of address and national ID files based on user ID and file formats
-        let file_name = utils::get_proof_of_address_path(
+        let proof_of_address_file_name = files::get_proof_of_address_path(
             &profile.user_id,
             &profile.proof_of_address_file_format,
         );
-        let national_id_front_file_name = utils::get_national_id_front_path(
+        let national_id_front_file_name = files::get_national_id_front_path(
             &profile.user_id,
             &profile.national_id_front_file_format,
         );
-        let national_id_back_file_name = utils::get_national_id_back_path(
+        let national_id_back_file_name = files::get_national_id_back_path(
             &profile.user_id,
             &profile.national_id_back_file_format,
         );
@@ -259,7 +264,7 @@ impl UserProfile {
             .bind(&profile.user_id)
             .bind(&profile.full_name)
             .bind(&profile.phone_number)
-            .bind(&file_name)
+            .bind(&proof_of_address_file_name)
             .bind(&national_id_front_file_name)
             .bind(&national_id_back_file_name)
             .bind(&profile.google_id)
@@ -274,41 +279,43 @@ impl UserProfile {
             return Err(result.err().unwrap());
         }
         tx.commit().await?;
+
+        // Get additional files if they exist
+        let mut data_map = HashMap::new();
+        if let Some(additional_files) = &profile.additional_files {
+            for (file_name, data) in additional_files.iter() {
+                let file_path = files::get_additional_file_path(&profile.user_id, file_name);
+                let data = Bytes::from(data.clone());
+                data_map.insert(file_path, data);
+            }
+        }
+
         // Upload proof of address file to cloud storage
-        let data = Bytes::from(profile.proof_of_address.clone());
-        let _client = s3_client.clone();
+        let proof_of_address_data = Bytes::from(profile.proof_of_address.clone());
+        data_map.insert(proof_of_address_file_name.clone(), proof_of_address_data);
 
         // Upload national ID front file to cloud storage
-        let national_id_front_file_name = format!(
-            "national_id_front_{}.{}",
-            profile.user_id, profile.national_id_front_file_format
-        );
         let national_id_front_data = Bytes::from(profile.national_id_front.clone());
-        let _client = s3_client.clone();
+        data_map.insert(national_id_front_file_name.clone(), national_id_front_data);
 
         // Upload national ID back file to cloud storage
-        let national_id_back_file_name = format!(
-            "national_id_back_{}.{}",
-            profile.user_id, profile.national_id_back_file_format
-        );
         let national_id_back_data = Bytes::from(profile.national_id_back.clone());
-        let _client = s3_client.clone();
+        data_map.insert(national_id_back_file_name.clone(), national_id_back_data);
 
         // Upload files in background task to avoid blocking the main thread
+        let _client = s3_client.clone();
         tokio::spawn(async move {
-            files::upload_file_to_s3(&_client, &file_name, data)
-                .await
-                .unwrap_or(());
-            files::upload_file_to_s3(
-                &_client,
-                &national_id_front_file_name,
-                national_id_front_data,
-            )
-            .await
-            .unwrap_or(());
-            files::upload_file_to_s3(&_client, &national_id_back_file_name, national_id_back_data)
-                .await
-                .unwrap_or(());
+            // Upload additional files to S3
+            for (file_name, data) in data_map.iter() {
+                match files::upload_file_to_s3(&_client, file_name, data.to_owned()).await {
+                    Ok(_) => {
+                        log::info!("Uploaded file {}", file_name,);
+                    }
+                    Err(e) => {
+                        log::error!("Error uploading file {}: {}", file_name, e);
+                    } // Continue with other files even if one fails
+                }
+            }
         });
         Ok(result.unwrap())
     }
@@ -377,13 +384,13 @@ impl UserProfile {
             .fetch_one(&mut *tx)
             .await
     }
-
 }
 
 #[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
 pub struct UserAuthToken {
-    pub token: String,
+    pub id: i32,
     pub user_id: i32,
+    pub token: String,
     pub app: String,
     pub is_used: bool,
     pub created_at: DateTime<Utc>,
@@ -393,8 +400,9 @@ pub struct UserAuthToken {
 impl UserAuthToken {
     pub fn new(user_id: i32, app: String, token: String) -> Self {
         UserAuthToken {
-            token,
+            id: 0, // This will be set by the database
             user_id,
+            token,
             app,
             is_used: false,
             created_at: Utc::now(),
@@ -481,8 +489,9 @@ impl UserAuthToken {
 
 #[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
 pub struct RegistrationToken {
-    pub token: String,
+    pub id: i32,
     pub user_id: i32,
+    pub token: String,
     pub app: String,
     pub is_used: bool,
     pub created_at: DateTime<Utc>,
@@ -490,7 +499,7 @@ pub struct RegistrationToken {
 }
 
 impl RegistrationToken {
-    /// Creates a new user auth token. Returns the created token or an error if there's a database issue.
+    /// Creates a new registration token. Returns the created token or an error if there's a database issue.
     pub async fn create(
         pool: &sqlx::PgPool,
         create_token: &RegistrationToken,
@@ -571,8 +580,9 @@ impl RegistrationToken {
 
 #[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
 pub struct PasswordResetToken {
-    pub token: String,
+    pub id: i32,
     pub user_id: i32,
+    pub token: String,
     pub is_used: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -581,6 +591,7 @@ pub struct PasswordResetToken {
 impl PasswordResetToken {
     pub fn new(user_id: i32, token: String) -> Self {
         PasswordResetToken {
+            id: 0, // This will be set by the database
             token,
             user_id,
             is_used: false,
@@ -660,6 +671,109 @@ impl PasswordResetToken {
         if result.is_err() {
             tx.rollback().await?;
             log::error!("Cannot find password reset token for token {}: ", token);
+            return Err(result.err().unwrap());
+        }
+        tx.commit().await?;
+        Ok(result.unwrap())
+    }
+}
+
+#[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
+pub struct AdditionalFile {
+    pub id: i32,
+    pub user_id: i32,
+    pub file_name: String,
+    pub file_data: Vec<u8>,
+    pub file_format: String,
+}
+
+impl AdditionalFile {
+    pub fn new(user_id: i32, file_name: String, file_data: Vec<u8>, file_format: String) -> Self {
+        AdditionalFile {
+            id: 0, // This will be set by the database
+            user_id,
+            file_name,
+            file_data,
+            file_format,
+        }
+    }
+
+    pub async fn create(
+        pool: &sqlx::PgPool,
+        file: &AdditionalFile,
+    ) -> Result<AdditionalFile, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let result = sqlx::query_as(
+            "INSERT INTO additional_files (user_id, file_name, file_data, file_format) VALUES ($1, $2, $3, $4) RETURNING *",
+        )
+        .bind(&file.user_id)
+        .bind(&file.file_name)
+        .bind(&file.file_data)
+        .bind(&file.file_format)
+        .fetch_one(&mut *tx)
+        .await;
+        if result.is_err() {
+            tx.rollback().await?;
+            log::error!(
+                "Cannot create additional file for user_id {}: ",
+                file.user_id
+            );
+            return Err(result.err().unwrap());
+        }
+        tx.commit().await?;
+        Ok(result.unwrap())
+    }
+
+    pub async fn find(pool: &sqlx::PgPool, id: &i32) -> Result<AdditionalFile, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let result =
+            sqlx::query_as::<_, AdditionalFile>("SELECT * FROM additional_files WHERE id = $1")
+                .bind(&id)
+                .fetch_one(&mut *tx)
+                .await;
+        if result.is_err() {
+            tx.rollback().await?;
+            log::error!("Cannot read additional file for id {}: ", id);
+            return Err(result.err().unwrap());
+        }
+        tx.commit().await?;
+        Ok(result.unwrap())
+    }
+
+    pub async fn delete(pool: &sqlx::PgPool, id: &i32) -> Result<(), sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let result = sqlx::query("DELETE FROM additional_files WHERE id = $1")
+            .bind(&id)
+            .fetch_optional(&mut *tx)
+            .await;
+        if result.is_err() {
+            tx.rollback().await?;
+            log::error!("Cannot delete additional file for id {}: ", id);
+            return Err(result.err().unwrap());
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update(
+        pool: &sqlx::PgPool,
+        id: &i32,
+        file: &AdditionalFile,
+    ) -> Result<AdditionalFile, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let result = sqlx::query_as(
+            "UPDATE additional_files SET user_id = $1, file_name = $2, file_data = $3, file_format = $4 WHERE id = $5 RETURNING *",
+        )
+        .bind(&file.user_id)
+        .bind(&file.file_name)
+        .bind(&file.file_data)
+        .bind(&file.file_format)
+        .bind(&id)
+        .fetch_one(&mut *tx)
+        .await;
+        if result.is_err() {
+            tx.rollback().await?;
+            log::error!("Cannot update additional file for id {}: ", id);
             return Err(result.err().unwrap());
         }
         tx.commit().await?;

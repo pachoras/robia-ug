@@ -4,9 +4,10 @@ use crate::utils;
 
 /// Initializes the Tera template engine by loading all templates from the specified directory.
 pub fn init_renderer() -> Tera {
-    let mut tera = Tera::new("templates/**/*").unwrap();
+    let mut tera =
+        Tera::new("templates/**/*").unwrap_or_else(|e| panic!("Failed to initialize Tera: {}", e));
     tera.add_template_file("src/templates/base.html", Some("base.html"))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("Failed to add template file: {}", e));
     tera
 }
 
@@ -25,15 +26,16 @@ pub fn render_template(
         context.insert(key, value);
     }
     // Always include the static CSS path in the context for all templates
-    let static_css_path = utils::generate_cache_busted_css_path().unwrap();
+    let static_css_path = utils::generate_cache_busted_css_path()
+        .unwrap_or_else(|e| panic!("Failed to generate cache-busted CSS path: {}", e));
     context.insert("static_path", &static_css_path);
     // Also include a static JS path for the main JavaScript file
-    let static_js_path = utils::generate_cache_busted_js_path().unwrap();
+    let static_js_path = utils::generate_cache_busted_js_path()
+        .unwrap_or_else(|e| panic!("Failed to generate cache-busted JS path: {}", e));
     context.insert("static_js_path", &static_js_path);
     // Generate a nonce for CSP to prevent XSS attacks
     let csp_nonce = utils::generate_random_string(32);
     context.insert("nonce", &format!("nonce-{}", csp_nonce));
-
     // Render the template with the given context
     tera.render(path, &context).map_err(|e| e.to_string())
 }

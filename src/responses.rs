@@ -1,0 +1,100 @@
+use axum::response::{Html, IntoResponse, Response};
+use reqwest::StatusCode;
+
+use crate::renderer::{self, init_renderer};
+
+#[derive(Debug)]
+pub struct AppError {
+    pub status_code: StatusCode,
+    pub message: Option<String>,
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let mut tera = init_renderer();
+        let mut context = std::collections::HashMap::new();
+        let mut response: Response;
+
+        if self.status_code == StatusCode::NOT_FOUND {
+            response = HtmlResponse {
+                title: "404 Not Found".to_string(),
+                path: "src/templates/404.html".to_string(),
+                tera: &mut tera,
+                context,
+            }
+            .into_response();
+            *response.status_mut() = StatusCode::NOT_FOUND;
+        } else if self.status_code == StatusCode::INTERNAL_SERVER_ERROR {
+            response = HtmlResponse {
+                title: "500 Internal Server Error".to_string(),
+                path: "src/templates/500.html".to_string(),
+                tera: &mut tera,
+                context,
+            }
+            .into_response();
+            *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            log::error!(
+                "Internal server error: {}",
+                self.message.unwrap_or_else(|| "Unknown error".to_string())
+            );
+        } else if self.status_code == StatusCode::UNAUTHORIZED {
+            log::warn!(
+                "Unauthorized access attempt: {}",
+                self.message
+                    .unwrap_or_else(|| "No additional info".to_string())
+            );
+            response = HtmlResponse {
+                title: "Login".to_string(),
+                path: "src/templates/login.html".to_string(),
+                tera: &mut tera,
+                context,
+            }
+            .into_response();
+            *response.status_mut() = StatusCode::UNAUTHORIZED;
+        } else if self.status_code == StatusCode::BAD_REQUEST {
+            let error_message = self.message.unwrap_or_else(|| "Bad request".to_string());
+            log::error!("Form validation error: {}", error_message);
+            context.insert("error_popup".to_string(), error_message);
+            response = HtmlResponse {
+                title: "Error".to_string(),
+                path: "src/templates/index.html".to_string(),
+                tera: &mut tera,
+                context,
+            }
+            .into_response();
+            *response.status_mut() = StatusCode::BAD_REQUEST;
+        } else {
+            response = HtmlResponse {
+                title: "Error".to_string(),
+                path: "src/templates/500.html".to_string(),
+                tera: &mut tera,
+                context,
+            }
+            .into_response();
+            *response.status_mut() = self.status_code;
+        }
+        response
+    }
+}
+
+pub struct HtmlResponse<'a> {
+    pub title: String,
+    pub path: String,
+    pub tera: &'a mut tera::Tera,
+    pub context: std::collections::HashMap<String, String>,
+}
+
+impl<'a> IntoResponse for HtmlResponse<'a> {
+    fn into_response(mut self) -> Response {
+        self.context.insert("title".to_string(), self.title);
+        let res = renderer::render_template(&mut self.tera, &self.path, &self.context);
+        Html(res.map_err(|e| {
+            log::error!("Template rendering error: {}", e);
+            return AppError {
+                message: Some("Template rendering error:".to_string()),
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            };
+        }))
+        .into_response()
+    }
+}

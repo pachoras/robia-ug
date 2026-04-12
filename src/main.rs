@@ -1,3 +1,4 @@
+mod api;
 mod auth;
 mod files;
 mod forms;
@@ -5,6 +6,7 @@ mod mail;
 mod middleware;
 mod models;
 mod renderer;
+mod responses;
 mod routes;
 mod session;
 mod state;
@@ -29,8 +31,12 @@ use tracing_subscriber::{self, EnvFilter, fmt, layer::SubscriberExt, util::Subsc
 async fn main() {
     println!("Starting router...");
     // Open database connection and run migrations on startup
-    let pool = models::connect_to_db().await.unwrap();
-    models::run_migrations(&pool).await.unwrap();
+    let pool = models::connect_to_db()
+        .await
+        .unwrap_or_else(|e| panic!("Failed to connect to the database: {}", e));
+    models::run_migrations(&pool)
+        .await
+        .unwrap_or_else(|_| panic!("Failed to run database migrations"));
 
     // Create the application state
     let tera = renderer::init_renderer();
@@ -40,12 +46,22 @@ async fn main() {
         pool,
         s3_client,
     };
+    // Initialize the router with the application state
     let app = init_router(state);
 
     // Listen on all interfaces on port 8000
-    let listener = TcpListener::bind("0.0.0.0:8000").await.unwrap();
-    println!("listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    let listener = TcpListener::bind("0.0.0.0:8000")
+        .await
+        .unwrap_or_else(|e| panic!("Failed to bind to address: {}", e));
+    println!(
+        "listening on {}",
+        listener
+            .local_addr()
+            .unwrap_or_else(|e| panic!("Cannot get local address: {}", e))
+    );
+    axum::serve(listener, app)
+        .await
+        .unwrap_or_else(|e| panic!("Failed to start server: {}", e));
 }
 
 fn init_router(state: state::AppState) -> Router {
@@ -58,8 +74,12 @@ fn init_router(state: state::AppState) -> Router {
     Router::new()
         .route("/", get(routes::index))
         .route("/register-loan", post(routes::submit_loan_application))
+        .route(
+            "/register-loan",
+            get(routes::submit_loan_application_redirect),
+        )
         .route("/login", get(routes::login_page))
-        .route("/login-google", post(routes::login_google))
+        .route("/login-google", post(api::login_google))
         .nest_service("/static", ServeDir::new("src/static"))
         .with_state(state)
         .layer(DefaultBodyLimit::disable())

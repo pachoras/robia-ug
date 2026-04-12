@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::FromRequestParts,
     http::{
@@ -9,7 +7,7 @@ use axum::{
 };
 
 use crate::state;
-use crate::{models, routes::AppError};
+use crate::{models, responses::AppError};
 
 use serde::Deserialize;
 
@@ -29,27 +27,38 @@ impl FromRequestParts<state::AppState> for ExtractAuthenticationCode {
                     let database_token =
                         models::UserAuthToken::find_by_token(&state.pool, &token).await;
                     if database_token.is_err() {
-                        return Err(AppError(
-                            StatusCode::UNAUTHORIZED,
-                            Some("Invalid authentication token".to_string()),
-                        ));
+                        return Err(AppError {
+                            status_code: StatusCode::UNAUTHORIZED,
+                            message: Some("Invalid authentication token".to_string()),
+                        });
                     }
                     let code = ExtractAuthenticationCode(
-                        HeaderValue::from_str(&database_token.unwrap().token).unwrap(),
+                        HeaderValue::from_str(
+                            &database_token
+                                .map_err(|_| AppError {
+                                    status_code: StatusCode::UNAUTHORIZED,
+                                    message: Some("Invalid authentication token".to_string()),
+                                })?
+                                .token,
+                        )
+                        .map_err(|_| AppError {
+                            status_code: StatusCode::UNAUTHORIZED,
+                            message: Some("Invalid authentication token".to_string()),
+                        })?,
                     );
                     return Ok(code);
                 } else {
-                    return Err(AppError(
-                        StatusCode::UNAUTHORIZED,
-                        Some("Authorization header must start with 'Bearer '".to_string()),
-                    ));
+                    return Err(AppError {
+                        status_code: StatusCode::UNAUTHORIZED,
+                        message: Some("Authorization header must start with 'Bearer '".to_string()),
+                    });
                 }
             }
         }
-        return Err(AppError(
-            StatusCode::UNAUTHORIZED,
-            Some("Missing or invalid Authorization header".to_string()),
-        ));
+        return Err(AppError {
+            status_code: StatusCode::UNAUTHORIZED,
+            message: Some("Missing or invalid Authorization header".to_string()),
+        });
     }
 }
 
@@ -68,27 +77,6 @@ struct Jwk {
     alg: String,
     r#use: String,
 }
-
-// {
-//   "keys": [
-//     {
-//       "alg": "RS256",
-//       "kty": "RSA",
-//       "kid": "a10e58df55e728566ec56bda6eb3bd45439f35d7",
-//       "n": "xlXYB0tN6zPS5ab4yjmCTnmYGwIigMDY0YqW3hYYrYOdXbZX9XWqKVO-XpqKgWY9EBGe15AWRUq2-uEASiSXZef8wdMjSBwUpSKdYSiAZCvjaO39c6nhdlZ57kGNd_oULOrFHWoLmO-7LP368E8H5BhmgjQzLhvl2BTdSX5IaTwxMBxZzhts2Ql-RkoNtm30_p9Wz-rWe9_mHotXLFB6zHjziH2VN3HJcBVcJFb2NCp4oQUFtCJd4u_6y3WvFfMtvPo6c7hthFhaDnEV_SIHtAViBtjtP-JETnLCUNCXAoMWJwCDzHllyavc6IbUWgNNCqRRvkBDDF9IxJBomDHqrQ",
-//       "e": "AQAB",
-//       "use": "sig"
-//     },
-//     {
-//       "kid": "cce4e024a51aa0c1c41c1a4515a41dd7e961936b",
-//       "alg": "RS256",
-//       "kty": "RSA",
-//       "e": "AQAB",
-//       "use": "sig",
-//       "n": "t2siQKIKIwl-kCuxm5hL3IjoBdhHyZ0cjZr46q30LOMFc-9jCEsU7JkkoKLH8C0xjtwVS8i36ksVK1sjpib6SchY40nZG2prZbLdJji0IfCD6lYP_xEgobq2IdRt3X8Vf4k4OUhwckcFy1cod4139jFGnMzcVmE8LXujOigeAYQMAXop0wpkVFudzhMqhTH3rhHjt12ZJ-e1HRKvc7EAD0NoG_FaxWrsUJtl44FnaHxoRU_pRIuALrxCXvgEjcLDivbXwTGXldNW1R3ilsWi2Q1ERx6vXg4UDMg-9YtFKWekjt29xvEp3phchl2SV82rDkb7k16JC1zwsGpDLP55SQ"
-//     }
-//   ]
-// }
 
 async fn fetch_google_jwks() -> Result<Jwks, GoogleClaimsError> {
     let result = reqwest::get("https://www.googleapis.com/oauth2/v3/certs").await;

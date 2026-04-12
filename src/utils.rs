@@ -32,18 +32,6 @@ pub fn generate_cache_busted_js_path() -> io::Result<String> {
     Ok(static_js_path)
 }
 
-pub fn get_proof_of_address_path(user_id: &i32, format: &str) -> String {
-    format!("proof_of_address_{}.{}", user_id, format)
-}
-
-pub fn get_national_id_front_path(user_id: &i32, format: &str) -> String {
-    format!("national_id_front_{}.{}", user_id, format)
-}
-
-pub fn get_national_id_back_path(user_id: &i32, format: &str) -> String {
-    format!("national_id_back_{}.{}", user_id, format)
-}
-
 // Source - https://stackoverflow.com/a/72977937
 // Posted by Mari, modified by community. See post 'Timeline' for change history
 // Retrieved 2026-04-04, License - CC BY-SA 4.0

@@ -4,6 +4,8 @@ use lettre::{
     transport::smtp::authentication::{Credentials, Mechanism},
 };
 
+use crate::renderer::init_renderer;
+
 /// Sends an email using lettre
 pub async fn send_email(
     from: &str,
@@ -14,9 +16,9 @@ pub async fn send_email(
     action: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Render email from template
-    let mut tera = tera::Tera::new("templates/**/*").unwrap();
+    let mut tera = init_renderer();
     tera.add_template_file("src/templates/email.html", Some("email.html"))
-        .unwrap();
+        .unwrap_or_else(|e| panic!("Failed to add template file: {}", e));
     let mut context = tera::Context::new();
     context.insert("title", subject);
     context.insert("message", body);

@@ -328,3 +328,19 @@ pub async fn upload_file_to_s3(
     upload_object(client, &config.bucket, file_name, byte_stream).await?;
     Ok(())
 }
+
+pub fn get_proof_of_address_path(user_id: &i32, format: &str) -> String {
+    format!("files/user/{}/proof_of_address.{}", user_id, format)
+}
+
+pub fn get_national_id_front_path(user_id: &i32, format: &str) -> String {
+    format!("files/user/{}/national_id_front.{}", user_id, format)
+}
+
+pub fn get_national_id_back_path(user_id: &i32, format: &str) -> String {
+    format!("files/user/{}/national_id_back.{}", user_id, format)
+}
+
+pub fn get_additional_file_path(user_id: &i32, file_name: &str) -> String {
+    format!("files/user/{}/{}", user_id, file_name)
+}

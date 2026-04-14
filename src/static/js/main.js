@@ -114,10 +114,9 @@ let successPopupHTML = `
 
 // Google Sign-In
 function handleCredentialResponse(response) {
-  // Get the selected login type (loans or pro) from the UI
-  const selectedLoginType = document.querySelector(
-    ".login-button-group .generic-stroke",
-  ).id;
+  const applicationInput = document.getElementById("application");
+  const selectedLoginType = applicationInput.value; // Get the selected login type from the hidden input
+
   // Send the ID token to the backend for verification and authentication
   fetch("/login-google", {
     method: "POST",
@@ -126,20 +125,20 @@ function handleCredentialResponse(response) {
     },
     body: JSON.stringify({
       token: response.credential,
-      app: selectedLoginType,
+      application: selectedLoginType,
     }),
   })
     .then((res) => res.json())
     .then((data) => {
       if (data.status === "OK") {
-        if (selectedLoginType === "login-button-loans") {
-          // Redirect to the dashboard after successful login
-          window.location.href = "https://app.robia.ug/dashboard";
-        } else if (selectedLoginType === "login-button-pro") {
-          // Redirect to the pro dashboard after successful login
-          window.location.href = "https://app.robia.ug/pro-dashboard";
+        if (selectedLoginType === "loans") {
+          // Redirect to the app login url
+          window.location.href = `https://app.robia.ug/login/${data.token}`;
+        } else if (selectedLoginType === "pro") {
+          // Redirect to the pro login url
+          window.location.href = `https://pro.robia.ug/login/${data.token}`;
         }
-      } else if (data.status === "NOT_FOUND") {
+      } else if (data.status === "MISSING") {
         // Show popup element prompting user to sign up
         successPopupHTML = successPopupHTML.replace(
           "message",
@@ -148,17 +147,12 @@ function handleCredentialResponse(response) {
         let newdiv = document.createElement("div");
         newdiv.innerHTML = successPopupHTML;
         document.body.appendChild(newdiv);
-        // After 10 seconds, redirect to the sign-up page
+        // After 10 seconds, remove the popup
         setTimeout(() => {
-          if (selectedLoginType === "login-button-loans") {
-            window.location.href = `${window.location.origin}/#quick-loan`;
-          } else if (selectedLoginType === "login-button-pro") {
-            window.location.href = `${window.location.origin}/#pro-signup`;
-          }
-        }, 10000);
+          newdiv.remove();
+        }, 9900);
       } else {
-        // Handle other errors (e.g., show an error message)
-        console.error("Login error:", data.error);
+        console.error("Login error:", data.status);
       }
     })
     .catch((error) => {
@@ -170,6 +164,8 @@ function handleCredentialResponse(response) {
 function selectButton(button) {
   const loansButton = document.querySelector(".login-button-group-loans");
   const proButton = document.querySelector(".login-button-group-pro");
+  const applicationInput = document.getElementById("application");
+  applicationInput.value = button; // Set the hidden input value to the selected button
 
   if (button === "loans") {
     // Remove styles from pro button and add to loans button
@@ -190,6 +186,19 @@ function selectButton(button) {
     proButton.classList.remove("muted-background");
     proButton.classList.add("generic-stroke");
   }
+}
+
+// Forgot password input value matching
+let newPassword = document.getElementById("new-password");
+let confirmPassword = document.getElementById("confirm-password");
+if (newPassword && confirmPassword) {
+  confirmPassword.addEventListener("input", () => {
+    if (confirmPassword.value !== newPassword.value) {
+      confirmPassword.setCustomValidity("Passwords do not match");
+    } else {
+      confirmPassword.setCustomValidity("");
+    }
+  });
 }
 
 window.onload = () => {

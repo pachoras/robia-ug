@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod consts;
 mod files;
 mod forms;
 mod mail;
@@ -73,13 +74,15 @@ fn init_router(state: state::AppState) -> Router {
 
     Router::new()
         .route("/", get(routes::index))
-        .route("/register-loan", post(routes::submit_loan_application))
-        .route(
-            "/register-loan",
-            get(routes::submit_loan_application_redirect),
-        )
+        .route("/register-loan", post(routes::register_loan))
+        .route("/register-loan", get(routes::register_loan_redirect))
+        .route("/verify-token/{token}", get(routes::verify_token))
+        .route("/update-password", post(routes::update_password))
         .route("/login", get(routes::login_page))
+        .route("/login", post(routes::handle_login))
         .route("/login-google", post(api::login_google))
+        .route("/forgot-password", get(routes::forgot_password_page))
+        .route("/forgot-password", post(routes::handle_forgot_password))
         .nest_service("/static", ServeDir::new("src/static"))
         .with_state(state)
         .layer(DefaultBodyLimit::disable())

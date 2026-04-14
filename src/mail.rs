@@ -47,3 +47,38 @@ pub async fn send_email(
     sender.send(&email)?;
     Ok(())
 }
+
+/// Sends an email to admins when a 500 error occurs in production
+pub fn send_admin_error_email(error_message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let debug_mode = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
+    if debug_mode.contains("debug") {
+        log::info!("Debug mode enabled, skipping sending admin error email.");
+        return Ok(());
+    }
+    let _error_message = error_message.to_string();
+    // Send email in the background without blocking the main thread
+    tokio::spawn(async move {
+        let admin_email =
+            std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
+        let from_email =
+            std::env::var("FROM_EMAIL").unwrap_or_else(|_| "noreply@example.com".to_string());
+        send_email(
+            &from_email,
+            &admin_email,
+            "500 Error Occurred in Application",
+            &format!(
+                "A 500 error occurred in the application:\n\n{}",
+                _error_message.to_string()
+            ),
+            "",
+            "View Logs",
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to send admin error email: {}", e);
+            e
+        })
+        .unwrap();
+    });
+    Ok(())
+}

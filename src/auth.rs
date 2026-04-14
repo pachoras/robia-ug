@@ -25,7 +25,7 @@ impl FromRequestParts<state::AppState> for ExtractAuthenticationCode {
                 if auth_str.starts_with("Bearer ") {
                     let token = auth_str.trim_start_matches("Bearer ").to_string();
                     let database_token =
-                        models::UserAuthToken::find_by_token(&state.pool, &token).await;
+                        models::ApplicationToken::find_by_token(&state.pool, &token).await;
                     if database_token.is_err() {
                         return Err(AppError {
                             status_code: StatusCode::UNAUTHORIZED,

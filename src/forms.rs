@@ -1,9 +1,8 @@
-use std::hash::Hash;
+use std::collections::HashMap;
 
-use crate::models;
-use aws_sdk_s3::types::error;
 use axum::extract::Multipart;
 use regex;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct FormError(String);
@@ -13,13 +12,58 @@ impl std::fmt::Display for FormError {
         write!(f, "{}", self.0)
     }
 }
+#[derive(Clone, Debug, Deserialize)]
+pub struct UserData {
+    pub email: String,
+}
+
+impl UserData {
+    pub fn new() -> Self {
+        UserData {
+            email: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct UserProfileData {
+    pub user_id: i32,
+    pub full_name: String,
+    pub phone_number: String,
+    pub proof_of_address: Vec<u8>,
+    pub proof_of_address_file_format: String,
+    pub national_id_back: Vec<u8>,
+    pub national_id_back_file_format: String,
+    pub national_id_front: Vec<u8>,
+    pub national_id_front_file_format: String,
+    pub google_id: Option<String>,
+    pub additional_files: Option<HashMap<String, Vec<u8>>>,
+}
+
+impl UserProfileData {
+    pub fn new() -> Self {
+        UserProfileData {
+            user_id: 0,
+            full_name: String::new(),
+            phone_number: String::new(),
+            proof_of_address: Vec::new(),
+            proof_of_address_file_format: String::new(),
+            national_id_back: Vec::new(),
+            national_id_back_file_format: String::new(),
+            national_id_front: Vec::new(),
+            national_id_front_file_format: String::new(),
+            google_id: None,
+            additional_files: None,
+        }
+    }
+}
 
 /// Helper function to extract and validate registration form data from the multipart request.
 pub async fn get_seeker_registration_form_data(
     mut multipart: Multipart,
-) -> Result<(models::UserData, models::UserProfileData), FormError> {
-    let mut user_data = models::UserData::new();
-    let mut profile_data = models::UserProfileData::new();
+) -> Result<(UserData, UserProfileData), FormError> {
+    let mut user_data = UserData::new();
+    let mut profile_data = UserProfileData::new();
     let mut context = std::collections::HashMap::new();
     let mut additional_file_map: std::collections::HashMap<String, Vec<u8>> =
         std::collections::HashMap::new();
@@ -166,4 +210,40 @@ pub async fn get_seeker_registration_form_data(
         )));
     }
     Ok((user_data, profile_data))
+}
+
+pub async fn validate_password(password: &str) -> Result<(), FormError> {
+    if password.len() < 8 {
+        return Err(FormError(
+            "Password must be at least 8 characters long".to_string(),
+        ));
+    }
+    if !password.chars().any(|c| c.is_uppercase()) {
+        return Err(FormError(
+            "Password must contain at least one uppercase letter".to_string(),
+        ));
+    }
+    if !password.chars().any(|c| c.is_lowercase()) {
+        return Err(FormError(
+            "Password must contain at least one lowercase letter".to_string(),
+        ));
+    }
+    if !password.chars().any(|c| c.is_digit(10)) {
+        return Err(FormError(
+            "Password must contain at least one digit".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ForgotPasswordData {
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct LoginData {
+    pub email: String,
+    pub password: String,
+    pub application: Option<String>,
 }

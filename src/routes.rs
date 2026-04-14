@@ -1,17 +1,23 @@
-use crate::files;
+use crate::consts;
 use crate::forms;
 use crate::models;
 use crate::responses::AppError;
+use crate::responses::ErrorPopupResponse;
 use crate::responses::HtmlResponse;
+use crate::responses::SuccessPopupResponse;
+use crate::session;
 use crate::state::AppState;
+use axum::Form;
+use axum::extract::Path;
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
+use serde::Deserialize;
+use serde::Serialize;
 
 pub async fn index(State(mut state): State<AppState>) -> Response {
-    let mut context = std::collections::HashMap::new();
-    context.insert("title".to_string(), "Robia Labs Ltd".to_string());
+    let context = std::collections::HashMap::new();
 
     HtmlResponse {
         title: "Robia Labs Ltd".to_string(),
@@ -22,13 +28,9 @@ pub async fn index(State(mut state): State<AppState>) -> Response {
     .into_response()
 }
 
-pub async fn submit_loan_application(
-    State(mut state): State<AppState>,
-    multipart: Multipart,
-) -> Response {
+pub async fn register_loan(State(mut state): State<AppState>, multipart: Multipart) -> Response {
     // Create contexts
-    let mut context = std::collections::HashMap::new();
-    context.insert("title".to_string(), "Robia Labs Ltd".to_string());
+    let context = std::collections::HashMap::new();
 
     // Validate form fields
     let (user_data, mut profile_data) =
@@ -51,15 +53,9 @@ pub async fn submit_loan_application(
                 "User with phone number {} already exists.\n Please log in instead.",
                 existing_profile.phone_number
             );
-            context.insert(
-                "error_popup".to_string(),
-                "A user with this phone number already exists.".to_string(),
-            );
-            return HtmlResponse {
-                title: "Robia Labs Ltd".to_string(),
-                path: "src/templates/index.html".to_string(),
-                tera: &mut state.tera,
-                context,
+            return AppError {
+                status_code: StatusCode::BAD_REQUEST,
+                message: Some("A user with this profile already exists.".to_string()),
             }
             .into_response();
         }
@@ -79,7 +75,7 @@ pub async fn submit_loan_application(
     }
 
     // Create user
-    match models::User::create_with_email(&state.pool, &user_data.email).await {
+    match models::User::create_loan_applicant(&state.pool, &user_data.email).await {
         Ok(user) => {
             log::info!("Created user with ID: {}", user.id);
             // Create user profile
@@ -87,11 +83,12 @@ pub async fn submit_loan_application(
             match models::UserProfile::create(&state.pool, &state.s3_client, &profile_data).await {
                 Ok(profile) => {
                     log::info!("Created user profile for user ID: {}", profile.user_id);
-                    context.insert(
-                    "success_popup".to_string(),
-                    "Your loan application has been received, please check your email for further instructions."
-                        .to_string(),
-                    );
+                    return SuccessPopupResponse {
+                        message: "Your loan application has been received, please check your email for further instructions.",
+                        tera: &mut state.tera,
+                        path: "src/templates/index.html",
+                        context,
+                    }.into_response();
                 }
                 Err(sqlx::Error::Database(e)) => {
                     if e.code() == Some("23505".into()) {
@@ -141,15 +138,13 @@ pub async fn submit_loan_application(
     .into_response()
 }
 
-pub async fn submit_loan_application_redirect(State(_): State<AppState>) -> Response {
+pub async fn register_loan_redirect(State(_): State<AppState>) -> Response {
     // Redirect to index page if get request made to loan application endpoint
     axum::response::Redirect::to("/#quick-loan").into_response()
 }
 
 pub async fn login_page(State(mut state): State<AppState>) -> Response {
-    let mut context = std::collections::HashMap::new();
-    context.insert("title".to_string(), "Login".to_string());
-
+    let context = std::collections::HashMap::new();
     HtmlResponse {
         title: "Login".to_string(),
         path: "src/templates/login.html".to_string(),
@@ -157,6 +152,317 @@ pub async fn login_page(State(mut state): State<AppState>) -> Response {
         context,
     }
     .into_response()
+}
+
+pub async fn handle_login(
+    State(mut state): State<AppState>,
+    Form(data): Form<forms::LoginData>,
+) -> Response {
+    // Check if user exists
+    match models::User::find_by_email(&state.pool, &data.email).await {
+        Ok(user) => {
+            // Verify password
+            if crate::utils::password_matches_hash(&data.password, &user.salt, &user.password_hash)
+            {
+                // Get selected application
+                let app = data
+                    .application
+                    .unwrap_or_else(|| consts::APPLICATION_VARIANT_LOANS.to_string());
+                if app != consts::APPLICATION_VARIANT_LOANS
+                    && app != consts::APPLICATION_VARIANT_PRO
+                {
+                    log::warn!("Invalid application variant selected: {}", app);
+                    return ErrorPopupResponse {
+                        message: "Invalid application selected.",
+                        tera: &mut state.tera,
+                        path: "src/templates/login.html",
+                        context: std::collections::HashMap::new(),
+                    }
+                    .into_response();
+                } else if app == consts::APPLICATION_VARIANT_PRO {
+                    // Create auth token and return it as http-only cookie for pro user
+                    match models::ApplicationToken::create_auth_token(
+                        &state.pool,
+                        user.id,
+                        models::TokenTypeVariants::ProAuthentication,
+                    )
+                    .await
+                    {
+                        Ok(token) => {
+                            log::info!("User with email {} logged in successfully.", data.email);
+                            // Redirect to selected application page
+                            let pro_application_url = std::env::var("PRO_APPLICATION_URL")
+                                .unwrap_or_else(|_| "http://localhost:4000".to_string());
+                            let uri = format!("{}/login/{}", pro_application_url, token.token);
+                            // Set http token cookie and redirect
+                            return session::set_http_cookie(
+                                axum::response::Redirect::to(&uri).into_response(),
+                                "auth_token".to_string(),
+                                token.token.clone(),
+                            );
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Error creating auth token for user with email {}: {}",
+                                data.email,
+                                e
+                            );
+                            return AppError {
+                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message: Some("Could not log in at this time.".to_string()),
+                            }
+                            .into_response();
+                        }
+                    }
+                } else if app == consts::APPLICATION_VARIANT_LOANS {
+                    // Create auth token and return it as http-only cookie
+                    match models::ApplicationToken::create_auth_token(
+                        &state.pool,
+                        user.id,
+                        models::TokenTypeVariants::LoansAuthentication,
+                    )
+                    .await
+                    {
+                        Ok(token) => {
+                            log::info!("User with email {} logged in successfully.", data.email);
+                            // Redirect to selected application page
+                            let loan_application_url = std::env::var("LOAN_APPLICATION_URL")
+                                .unwrap_or_else(|_| "http://localhost:3000".to_string());
+                            let uri = format!("{}/login/{}", loan_application_url, token.token);
+                            // Set http token cookie and redirect
+                            return session::set_http_cookie(
+                                axum::response::Redirect::to(&uri).into_response(),
+                                "auth_token".to_string(),
+                                token.token.clone(),
+                            );
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Error creating auth token for user with email {}: {}",
+                                data.email,
+                                e
+                            );
+                            return AppError {
+                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message: Some("Could not log in at this time.".to_string()),
+                            }
+                            .into_response();
+                        }
+                    }
+                }
+            } else {
+                log::warn!("Invalid password for email: {}", data.email);
+                return ErrorPopupResponse {
+                    message: "Invalid email or password.",
+                    tera: &mut state.tera,
+                    path: "src/templates/login.html",
+                    context: std::collections::HashMap::new(),
+                }
+                .into_response();
+            }
+        }
+        Err(_) => {
+            log::warn!("Login attempt with non-existent email: {}", data.email);
+            return ErrorPopupResponse {
+                message: "Invalid email or password.",
+                tera: &mut state.tera,
+                path: "src/templates/login.html",
+                context: std::collections::HashMap::new(),
+            }
+            .into_response();
+        }
+    }
+    let context = std::collections::HashMap::new();
+    HtmlResponse {
+        title: "Login".to_string(),
+        path: "src/templates/login.html".to_string(),
+        tera: &mut state.tera,
+        context,
+    }
+    .into_response()
+}
+
+pub async fn forgot_password_page(State(mut state): State<AppState>) -> Response {
+    let context = std::collections::HashMap::new();
+    HtmlResponse {
+        title: "Forgot Password".to_string(),
+        path: "src/templates/forgot_password.html".to_string(),
+        tera: &mut state.tera,
+        context,
+    }
+    .into_response()
+}
+
+pub async fn verify_token(
+    State(mut state): State<AppState>,
+    Path(token): Path<String>,
+) -> Response {
+    match models::ApplicationToken::find_by_token(&state.pool, &token).await {
+        Ok(app_token) => {
+            // Validate app_token
+            match app_token.verify(&state.pool).await {
+                Ok(verified_token) => {
+                    // Render change password page
+                    let mut context = std::collections::HashMap::new();
+                    context.insert("token".to_string(), verified_token.token);
+                    return HtmlResponse {
+                        title: "Update password".to_string(),
+                        path: "src/templates/change_password.html".to_string(),
+                        tera: &mut state.tera,
+                        context,
+                    }
+                    .into_response();
+                }
+                Err(e) => {
+                    log::error!("Invalid token: {}", e);
+                    return AppError {
+                        status_code: StatusCode::BAD_REQUEST,
+                        message: Some("Token has expired.".to_string()),
+                    }
+                    .into_response();
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Invalid token: {}", e);
+            return AppError {
+                status_code: StatusCode::BAD_REQUEST,
+                message: Some("Token is invalid.".to_string()),
+            }
+            .into_response();
+        }
+    }
+}
+
+pub async fn handle_forgot_password(
+    State(mut state): State<AppState>,
+    Form(data): Form<forms::ForgotPasswordData>,
+) -> Response {
+    match models::User::find_by_email(&state.pool, &data.email).await {
+        Ok(user) => {
+            match models::ApplicationToken::create_password_reset_token(&state.pool, &user).await {
+                Ok(_) => {
+                    log::info!("Created password reset token for user ID: {}", user.id);
+                    return SuccessPopupResponse {
+                            message: "If an account with that email exists, a password reset link has been sent.",
+                            tera: &mut state.tera,
+                            path: "src/templates/forgot_password.html",
+                            context: std::collections::HashMap::new(),
+                    }
+                    .into_response();
+                }
+                Err(e) => {
+                    log::error!("Error creating password reset token: {}", e);
+                    axum::response::Redirect::to("/#login").into_response()
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Error finding user by email: {}", e);
+            // Redirect to forgot password page with generic success message to prevent email enumeration
+            axum::response::Redirect::to("/#login").into_response()
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdatePasswordData {
+    token: String,
+    new_password: String,
+}
+
+pub async fn update_password(
+    State(mut state): State<AppState>,
+    Form(data): Form<UpdatePasswordData>,
+) -> Response {
+    match models::ApplicationToken::find_by_token(&state.pool, &data.token).await {
+        Ok(token) => {
+            // Validate token
+            match token.verify(&state.pool).await {
+                Ok(app_token) => {
+                    // Validate new password
+                    match forms::validate_password(&data.new_password).await {
+                        Ok(_) => {
+                            // Mark token as used
+                            let _ = models::ApplicationToken::set_used(&state.pool, &app_token.id)
+                                .await;
+                            // Create new password hash
+                            match models::User::find(&state.pool, app_token.user_id).await {
+                                Ok(mut user) => {
+                                    user.password_hash = crate::utils::get_password_hash(
+                                        &data.new_password,
+                                        &user.salt,
+                                    );
+                                    match models::User::update(&state.pool, user.id, &user).await {
+                                        Ok(_) => {
+                                            log::info!("Password updated for user ID: {}", user.id);
+                                            // Redirect to login page with success message
+                                            SuccessPopupResponse {
+                                                message: "Your password has been updated successfully. Please log in.",
+                                                tera: &mut state.tera,
+                                                path: "src/templates/login.html",
+                                                context: std::collections::HashMap::new(),
+                                            }
+                                            .into_response()
+                                        }
+                                        Err(e) => {
+                                            log::error!("Error updating password: {}", e);
+                                            return AppError {
+                                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                                message: Some(
+                                                    "Could not update password at this time."
+                                                        .to_string(),
+                                                ),
+                                            }
+                                            .into_response();
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    return AppError {
+                                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                        message: Some("Could not update password.".to_string()),
+                                    }
+                                    .into_response();
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Password validation error: {}", e);
+                            let message: &'static str = Box::leak(e.to_string().into_boxed_str());
+                            return ErrorPopupResponse {
+                                message,
+                                tera: &mut state.tera,
+                                path: "src/templates/change_password.html",
+                                context: {
+                                    let mut c = std::collections::HashMap::new();
+                                    c.insert("token".to_string(), app_token.token.clone());
+                                    c
+                                },
+                            }
+                            .into_response();
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error verifying registration token: {}", e);
+                    return AppError {
+                        status_code: StatusCode::BAD_REQUEST,
+                        message: Some("Could not verify registration at this time.".to_string()),
+                    }
+                    .into_response();
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Invalid registration token: {}", e);
+            return AppError {
+                status_code: StatusCode::BAD_REQUEST,
+                message: Some("Token has expired.".to_string()),
+            }
+            .into_response();
+        }
+    }
 }
 
 /* Tests */

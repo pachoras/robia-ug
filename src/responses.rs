@@ -1,7 +1,10 @@
 use axum::response::{Html, IntoResponse, Response};
 use reqwest::StatusCode;
 
-use crate::renderer::{self, init_renderer};
+use crate::{
+    mail,
+    renderer::{self, init_renderer},
+};
 
 #[derive(Debug)]
 pub struct AppError {
@@ -33,10 +36,12 @@ impl IntoResponse for AppError {
             }
             .into_response();
             *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-            log::error!(
-                "Internal server error: {}",
-                self.message.unwrap_or_else(|| "Unknown error".to_string())
-            );
+            let error_message = self
+                .message
+                .clone()
+                .unwrap_or_else(|| "Unknown error".to_string());
+            log::error!("Internal server error: {}", error_message);
+            mail::send_admin_error_email(&error_message).unwrap_or_else(|_| ());
         } else if self.status_code == StatusCode::UNAUTHORIZED {
             log::warn!(
                 "Unauthorized access attempt: {}",
@@ -53,7 +58,7 @@ impl IntoResponse for AppError {
             *response.status_mut() = StatusCode::UNAUTHORIZED;
         } else if self.status_code == StatusCode::BAD_REQUEST {
             let error_message = self.message.unwrap_or_else(|| "Bad request".to_string());
-            log::error!("Form validation error: {}", error_message);
+            log::error!("Submission error: {}", error_message);
             context.insert("error_popup".to_string(), error_message);
             response = HtmlResponse {
                 title: "Error".to_string(),
@@ -95,6 +100,48 @@ impl<'a> IntoResponse for HtmlResponse<'a> {
                 status_code: StatusCode::INTERNAL_SERVER_ERROR,
             };
         }))
+        .into_response()
+    }
+}
+
+pub struct SuccessPopupResponse<'a> {
+    pub message: &'static str,
+    pub tera: &'a mut tera::Tera,
+    pub path: &'static str,
+    pub context: std::collections::HashMap<String, String>,
+}
+
+impl<'a> IntoResponse for SuccessPopupResponse<'a> {
+    fn into_response(mut self) -> Response {
+        self.context
+            .insert("success_popup".to_string(), self.message.to_string());
+        HtmlResponse {
+            title: "Success".to_string(),
+            path: self.path.to_string(),
+            tera: &mut self.tera,
+            context: self.context,
+        }
+        .into_response()
+    }
+}
+
+pub struct ErrorPopupResponse<'a> {
+    pub message: &'static str,
+    pub tera: &'a mut tera::Tera,
+    pub path: &'static str,
+    pub context: std::collections::HashMap<String, String>,
+}
+
+impl<'a> IntoResponse for ErrorPopupResponse<'a> {
+    fn into_response(mut self) -> Response {
+        self.context
+            .insert("error_popup".to_string(), self.message.to_string());
+        HtmlResponse {
+            title: "Error".to_string(),
+            path: self.path.to_string(),
+            tera: &mut self.tera,
+            context: self.context,
+        }
         .into_response()
     }
 }

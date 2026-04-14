@@ -40,6 +40,19 @@ pub fn generate_cache_busted_js_path() -> io::Result<String> {
 pub fn generate_random_string(length: usize) -> String {
     Alphanumeric.sample_string(&mut rand::rng(), length)
 }
+
+/// Hashes a password with a given salt using SHA-256 and returns the hash as a hexadecimal string.
+pub fn get_password_hash(password: &str, salt: &str) -> String {
+    let hash = Sha256::digest(format!("{}{}", password, salt).as_bytes());
+    format!("{:x}", hash)
+}
+
+/// Verifies a password by hashing it with the provided salt and comparing it to the expected hash.
+pub fn password_matches_hash(password: &str, salt: &str, hash: &str) -> bool {
+    let computed_hash = get_password_hash(password, salt);
+    computed_hash == hash
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -105,7 +105,7 @@ impl<'a> IntoResponse for HtmlResponse<'a> {
 }
 
 pub struct SuccessPopupResponse<'a> {
-    pub message: &'static str,
+    pub message: String,
     pub tera: &'a mut tera::Tera,
     pub path: &'static str,
     pub context: std::collections::HashMap<String, String>,
@@ -114,7 +114,7 @@ pub struct SuccessPopupResponse<'a> {
 impl<'a> IntoResponse for SuccessPopupResponse<'a> {
     fn into_response(mut self) -> Response {
         self.context
-            .insert("success_popup".to_string(), self.message.to_string());
+            .insert("success_popup".to_string(), self.message);
         HtmlResponse {
             title: "Success".to_string(),
             path: self.path.to_string(),
@@ -126,7 +126,7 @@ impl<'a> IntoResponse for SuccessPopupResponse<'a> {
 }
 
 pub struct ErrorPopupResponse<'a> {
-    pub message: &'static str,
+    pub message: String,
     pub tera: &'a mut tera::Tera,
     pub path: &'static str,
     pub context: std::collections::HashMap<String, String>,
@@ -134,8 +134,7 @@ pub struct ErrorPopupResponse<'a> {
 
 impl<'a> IntoResponse for ErrorPopupResponse<'a> {
     fn into_response(mut self) -> Response {
-        self.context
-            .insert("error_popup".to_string(), self.message.to_string());
+        self.context.insert("error_popup".to_string(), self.message);
         HtmlResponse {
             title: "Error".to_string(),
             path: self.path.to_string(),

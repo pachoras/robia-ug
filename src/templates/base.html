@@ -15,7 +15,7 @@
       name="keywords"
       content="Robia Loans, loans, lending, borrowing, finance"
     />
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
     <title>{% if title %} {{ title }} {% endif %}</title>
     <link rel="stylesheet" href="{{ static_path }}" />
     <script
@@ -37,12 +37,14 @@
             alt="Robia Loans Logo" /></a
       ></span>
       <span class="menubar-button"
-        ><a href="#quick-loan" class="shallow hide-decoration"
+        ><a href="/#quick-loan" class="shallow hide-decoration"
           >Get a Loan</a
         ></span
       >
       <span class="menubar-button"
-        ><a href="#" class="shallow hide-decoration">Provide a Loan</a></span
+        ><a href="/#provide-loan" class="shallow hide-decoration"
+          >Provide a Loan</a
+        ></span
       >
       <span class="menubar-button"
         ><a href="#" class="shallow hide-decoration">Blog</a></span
@@ -99,7 +101,11 @@
       <section class="container-side"></section>
     </main>
     <footer>
-      <p>© {{ title }}. All rights reserved.</p>
+      <section class="container-side"></section>
+      <section class="container">
+        <p>© Robia Labs Limited. All rights reserved.</p>
+      </section>
+      <section class="container-side"></section>
     </footer>
   </body>
 </html>

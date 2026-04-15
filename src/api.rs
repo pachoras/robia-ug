@@ -1,8 +1,12 @@
 use axum::{Json, extract::State, response::IntoResponse};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{auth::verify_google_token, consts, mail, models, session, state::AppState};
+use crate::{
+    auth::verify_google_token, consts, mail, models, responses::AppError, session, state::AppState,
+    workflows,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GoogleLoginValues {
@@ -76,11 +80,31 @@ pub async fn login_google(
                         Ok(mut user_profile) => {
                             if user_profile.google_id.is_none() {
                                 user_profile.google_id = Some(claims.sub);
+                                let mut tx = state
+                                    .pool
+                                    .begin()
+                                    .await
+                                    .map_err(|_| AppError {
+                                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                        message: None,
+                                    })
+                                    .unwrap();
                                 if let Err(e) =
-                                    models::UserProfile::update(&state.pool, &user_profile).await
+                                    models::UserProfile::update(&mut tx, &user_profile).await
                                 {
                                     mail::send_admin_error_email(&e.to_string())
-                                        .unwrap_or_else(|_| ());
+                                        .map_err(|_| AppError {
+                                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                            message: None,
+                                        })
+                                        .unwrap();
+                                    tx.rollback()
+                                        .await
+                                        .map_err(|_| AppError {
+                                            status_code: StatusCode::BAD_REQUEST,
+                                            message: None,
+                                        })
+                                        .unwrap();
                                     return ApiResponse {
                                         status: ApiResponseStatus::ERROR,
                                         data: None,
@@ -118,7 +142,7 @@ pub async fn login_google(
                         };
                     } else if payload.application == consts::APPLICATION_VARIANT_PRO {
                         // Create auth token and return it as http-only cookie for pro user
-                        match models::ApplicationToken::create_auth_token(
+                        match workflows::create_auth_token(
                             &state.pool,
                             user.id,
                             models::TokenTypeVariants::ProAuthentication,
@@ -159,7 +183,7 @@ pub async fn login_google(
                         }
                     } else if payload.application == consts::APPLICATION_VARIANT_LOANS {
                         // Create auth token and return it as http-only cookie
-                        match models::ApplicationToken::create_auth_token(
+                        match workflows::create_auth_token(
                             &state.pool,
                             user.id,
                             models::TokenTypeVariants::LoansAuthentication,

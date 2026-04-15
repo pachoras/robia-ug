@@ -284,8 +284,8 @@ impl Config {
 
 pub async fn initialize_s3_client() -> aws_sdk_s3::Client {
     let config = Config::from_env().expect(
-        r#"Failed to load S3 configuration from environment variables. 
-            Please ensure RUSTFS_REGION, RUSTFS_ACCESS_KEY, RUSTFS_SECRET_KEY, 
+        r#"Failed to load S3 configuration from environment variables.
+            Please ensure RUSTFS_REGION, RUSTFS_ACCESS_KEY, RUSTFS_SECRET_KEY,
             and RUSTFS_ENDPOINT_URL are set."#,
     );
 
@@ -343,4 +343,19 @@ pub fn get_national_id_back_path(user_id: &i32, format: &str) -> String {
 
 pub fn get_additional_file_path(user_id: &i32, file_name: &str) -> String {
     format!("files/user/{}/{}", user_id, file_name)
+}
+
+pub fn get_certificate_of_incorporation_path(company_id: &i32, format: &str) -> String {
+    format!(
+        "files/company/{}/certificate_of_incorporation.{}",
+        company_id, format
+    )
+}
+
+pub fn get_business_proof_of_address_path(company_id: &i32, format: &str) -> String {
+    format!("files/company/{}/proof_of_address.{}", company_id, format)
+}
+
+pub fn get_business_loan_license_path(company_id: &i32, format: &str) -> String {
+    format!("files/company/{}/loan_license.{}", company_id, format)
 }

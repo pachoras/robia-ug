@@ -1,0 +1,649 @@
+//! This module describes functions that make end to end transactions, e.g user registration.
+//!
+//! # Usage
+//!
+//! ```
+//! use my_crate::utils;
+//! let result = utils::process(vec![1, 2, 3]);
+//! ```
+//!
+//! For more details, see [`process`](utils::process).
+
+use reqwest::StatusCode;
+
+use crate::{
+    files,
+    forms::{self, ProviderProfileData, UserData, UserProfileData},
+    mail::send_email,
+    models::{self, ApplicationToken, User},
+    responses::{AppError, ErrorPopupResponse, SuccessPopupResponse},
+    utils,
+};
+/// Creates a new registration token for a user. Returns the created token or an error if there's a database issue.
+pub async fn create_registration_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user: &User,
+    user_type: models::TokenTypeVariants,
+) -> Result<ApplicationToken, sqlx::Error> {
+    let create_token = ApplicationToken::new(user.id, user_type, utils::generate_random_string(64));
+    match ApplicationToken::create(tx, &create_token).await {
+        Ok(token) => {
+            // Send verification email
+            let hostname =
+                std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost:8000".to_string());
+            let proto: String = if hostname.contains("localhost") {
+                "http".to_string()
+            } else {
+                "https".to_string()
+            };
+            let link = format!(
+                "{}://{}/verify-token/{}",
+                proto, hostname, create_token.token
+            );
+            let body = format!(
+                r#"Your loan application has been received, please click the link below to complete your
+                registration and view your loan application status.
+
+                If you cannot click the link, please copy and paste the following URL into your browser:    {}"#,
+                link
+            );
+            // Send email in background task to avoid blocking the main thread
+            let user = user.clone();
+            tokio::spawn(async move {
+                send_email(
+                    "Robia Labs <no-reply@robialabs.com>",
+                    &user.email,
+                    "Welcome to Robia Loans",
+                    &body,
+                    &link,
+                    "Verify email",
+                )
+                .await
+                .unwrap();
+            });
+            Ok(token)
+        }
+        Err(e) => return Err(e),
+    }
+}
+/// Creates a new password reset token for a user. Returns the created token or an error if there's a database issue.
+pub async fn create_password_reset_token(
+    pool: &sqlx::PgPool,
+    user: &User,
+) -> Result<ApplicationToken, sqlx::Error> {
+    // Prepare transaction
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| AppError {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: Some(format!(
+                "Could not check for existing user at this time: {}",
+                e
+            )),
+        })
+        .unwrap();
+    let create_token = ApplicationToken::new(
+        user.id,
+        models::TokenTypeVariants::PasswordReset,
+        utils::generate_random_string(64),
+    );
+    // First delete any existing password reset tokens for the user to prevent multiple valid tokens at the same time
+    match ApplicationToken::find_any_by_user_id_and_type(
+        pool,
+        user.id,
+        models::TokenTypeVariants::PasswordReset,
+    )
+    .await
+    {
+        Ok(existing_token) => {
+            log::info!(
+                "Existing password reset token found for user with email {}, deleting it",
+                user.email
+            );
+            match ApplicationToken::delete(pool, &existing_token.token).await {
+                Ok(_) => {
+                    log::info!(
+                        "Deleted existing password reset token for user with email {}",
+                        user.email
+                    );
+                }
+                Err(e) => {
+                    log::error!(
+                        "Error deleting existing password reset token for user with email {}: {}",
+                        user.email,
+                        e
+                    );
+                    return Err(e);
+                }
+            }
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // No existing token found, continue with creating new one
+        }
+        Err(e) => {
+            log::error!(
+                "Error checking for existing password reset token for user with email {}: {}",
+                user.email,
+                e
+            );
+            return Err(e);
+        }
+    }
+
+    match ApplicationToken::create(&mut tx, &create_token).await {
+        Ok(token) => {
+            // Send verification email
+            let hostname = std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
+            let proto: String = if hostname == "localhost" {
+                "http".to_string()
+            } else {
+                "https".to_string()
+            };
+            let link = format!(
+                "{}://{}/verify-token/{}",
+                proto, hostname, create_token.token
+            );
+            let body = format!(
+                r#"You recently requested a password reset. Please click the link below to reset your password.
+
+                If you did not request a password reset, please ignore this email or reply to let us know.
+                This password reset link is only valid for the next 24 hours.
+
+                If you cannot click the link, please copy and
+                paste the following URL into your browser:    {}"#,
+                link
+            );
+            // Send email in background task to avoid blocking the main thread
+            let user = user.clone();
+            tokio::spawn(async move {
+                send_email(
+                    "Robia Labs <no-reply@robialabs.com>",
+                    &user.email,
+                    "Password Reset Request",
+                    &body,
+                    &link,
+                    "Reset Password",
+                )
+                .await
+                .unwrap();
+            });
+            Ok(token)
+        }
+        Err(e) => return Err(e),
+    }
+}
+/// Creates a new authentication token for a user based on the application variant. Returns the created token or an error if there's a database issue.
+pub async fn create_auth_token(
+    pool: &sqlx::PgPool,
+    user_id: i32,
+    token_variant: models::TokenTypeVariants,
+) -> Result<ApplicationToken, sqlx::Error> {
+    // Prepare transaction
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| AppError {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: Some(format!(
+                "Could not check for existing user at this time: {}",
+                e
+            )),
+        })
+        .unwrap();
+    let create_token: ApplicationToken;
+    match token_variant {
+        models::TokenTypeVariants::LoansAuthentication => {
+            create_token = ApplicationToken::new(
+                user_id,
+                models::TokenTypeVariants::LoansAuthentication,
+                utils::generate_random_string(64),
+            );
+        }
+        models::TokenTypeVariants::ProAuthentication => {
+            create_token = ApplicationToken::new(
+                user_id,
+                models::TokenTypeVariants::ProAuthentication,
+                utils::generate_random_string(64),
+            );
+        }
+        models::TokenTypeVariants::AdminAuthentication => {
+            create_token = ApplicationToken::new(
+                user_id,
+                models::TokenTypeVariants::AdminAuthentication,
+                utils::generate_random_string(64),
+            );
+        }
+        _ => {
+            log::error!("Invalid application variant specified for auth token creation");
+            return Err(sqlx::Error::RowNotFound);
+        }
+    };
+    match ApplicationToken::create(&mut tx, &create_token).await {
+        Ok(token) => {
+            tx.commit().await?;
+            Ok(token)
+        }
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e)
+        }
+    }
+}
+// Update a user's data
+pub async fn update_password<'a>(
+    pool: &sqlx::PgPool,
+    tera: &'a mut tera::Tera,
+    token: &String,
+    new_password: &String,
+) -> Result<SuccessPopupResponse<'a>, ErrorPopupResponse<'a>> {
+    let mut err: Option<String> = None;
+    match models::ApplicationToken::find_by_token(pool, token).await {
+        Ok(token) => {
+            // Validate token
+            match token.verify(&pool).await {
+                Ok(app_token) => {
+                    // Validate new password
+                    match forms::validate_password(new_password).await {
+                        Ok(_) => {
+                            // Mark token as used
+                            let _ = models::ApplicationToken::set_used(&pool, &app_token.id).await;
+                            // Create new password hash
+                            match models::User::find(&pool, app_token.user_id).await {
+                                Ok(mut user) => {
+                                    user.password_hash =
+                                        crate::utils::get_password_hash(new_password, &user.salt);
+                                    match pool.begin().await {
+                                        Ok(mut tx) => {
+                                            match models::User::update(&mut tx, user.id, &user)
+                                                .await
+                                            {
+                                                Ok(_) => {
+                                                    log::info!(
+                                                        "Password updated for user ID: {}",
+                                                        user.id
+                                                    );
+                                                    // Redirect to login page with success message
+                                                    tx.commit()
+                                                        .await
+                                                        .map_err(|_| AppError {
+                                                            status_code:
+                                                                StatusCode::INTERNAL_SERVER_ERROR,
+                                                            message: Some(
+                                                                "Unable to create user".to_string(),
+                                                            ),
+                                                        })
+                                                        .unwrap();
+                                                }
+                                                Err(e) => {
+                                                    log::error!("Error updating password: {}", e);
+                                                    tx.rollback()
+                                                        .await
+                                                        .map_err(|_| AppError {
+                                                            status_code:
+                                                                StatusCode::INTERNAL_SERVER_ERROR,
+                                                            message: Some(
+                                                                "Unable to create user".to_string(),
+                                                            ),
+                                                        })
+                                                        .unwrap();
+                                                    err = Some("Unable to create user".to_string());
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::error!("Database pool Error");
+                                            err = Some("Unable to create user".to_string());
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    err = Some("User doesn't exist".to_string());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Password validation error: {}", e);
+                            err = Some(format!("Password validation error: {}", e));
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error verifying registration token: {}", e);
+                    err = Some("Error verifying registration token".to_string());
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Invalid registration token: {}", e);
+            err = Some("Invalid registration token".to_string());
+        }
+    };
+    let msg = err.unwrap();
+    if false {
+        Ok(SuccessPopupResponse {
+            message: "Your password has been updated successfully. Please log in.".to_string(),
+            tera: tera,
+            path: "src/templates/login.html",
+            context: std::collections::HashMap::new(),
+        })
+    } else {
+        Err(ErrorPopupResponse {
+            message: msg,
+            tera: tera,
+            path: "src/templates/change_password.html",
+            context: {
+                let mut c = std::collections::HashMap::new();
+                c.insert("token".to_string(), token.clone());
+                c
+            },
+        })
+    }
+}
+/// Creates a new loan applicant user and sends them a verification email. Returns the created user or an error if there's a database issue.
+pub async fn create_application_user(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    email: &String,
+    token_type: models::TokenTypeVariants,
+) -> Result<User, sqlx::Error> {
+    let user = User::new(email.clone(), utils::generate_random_string(12));
+    match User::create(tx, &user).await {
+        Ok(created_user) => {
+            // Also create registration token for user
+            create_registration_token(tx, &created_user, token_type).await?;
+            log::info!("Created user with ID: {}", created_user.id);
+            Ok(created_user)
+        }
+        Err(e) => return Err(e),
+    }
+}
+/// Create a new user from uncommitted form data
+pub async fn register_user<'a>(
+    pool: &sqlx::PgPool,
+    client: aws_sdk_s3::Client,
+    tera: &'a mut tera::Tera,
+    user_data: &UserData,
+    profile_data: &UserProfileData,
+) -> Result<SuccessPopupResponse<'a>, AppError> {
+    let mut err: Option<AppError> = None;
+    // Prepare transaction
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| AppError {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: Some(format!(
+                "Could not check for existing user at this time: {}",
+                e
+            )),
+        })
+        .unwrap();
+
+    // Check if user with phone number or national ID already exists
+    match models::UserProfile::find_by_phone_number(&pool, &profile_data.phone_number).await {
+        Ok(existing_profile) => {
+            log::warn!(
+                "User with phone number {} already exists.\n Please log in instead.",
+                existing_profile.phone_number
+            );
+            err = Some(AppError {
+                status_code: StatusCode::BAD_REQUEST,
+                message: Some("A user with this profile already exists.".to_string()),
+            });
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // No user with this phone number, continue
+        }
+        Err(e) => {
+            err = Some(AppError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: Some(format!(
+                    "Could not check for existing user at this time: {}",
+                    e
+                )),
+            });
+        }
+    }
+
+    // Create user
+    match create_application_user(
+        &mut tx,
+        &user_data.email,
+        models::TokenTypeVariants::LoansAuthentication,
+    )
+    .await
+    {
+        Ok(user) => {
+            // Create user profile
+            let mut updated_profile_data = profile_data.clone();
+            updated_profile_data.user_id = user.id;
+            match models::UserProfile::create(&mut tx, &client, &updated_profile_data).await {
+                Ok(profile) => {
+                    log::info!("Created user profile for user ID: {}", profile.user_id);
+                    // Continue
+                }
+                Err(sqlx::Error::Database(e)) => {
+                    if e.code() == Some("23505".into()) {
+                        err = Some(AppError {
+                            status_code: StatusCode::BAD_REQUEST,
+                            message: Some("A user with this profile already exists.".to_string()),
+                        });
+                    } else {
+                        err = Some(AppError {
+                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                            message: Some(
+                                "Could not create user profile at this time.".to_string(),
+                            ),
+                        });
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error creating user profile: {}", e);
+                    err = Some(AppError {
+                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                        message: Some("Could not create user profile at this time.".to_string()),
+                    });
+                }
+            }
+        }
+        Err(sqlx::Error::Database(e)) => {
+            if e.code() == Some("23505".into()) {
+                err = Some(AppError {
+                    status_code: StatusCode::BAD_REQUEST,
+                    message: Some("A user with this email already exists.".to_string()),
+                });
+            } else {
+                log::error!("Error creating user: {}", e);
+                err = Some(AppError {
+                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: Some("Could not create user at this time.".to_string()),
+                });
+            }
+        }
+        Err(e) => {
+            log::error!("Error creating user: {}", e);
+            err = Some(AppError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: Some("Could not create user at this time.".to_string()),
+            });
+        }
+    };
+    match err {
+        Some(_) => match tx.rollback().await {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(AppError {
+                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: Some(format!(
+                        "Could not check for existing user at this time: {}",
+                        e
+                    )),
+                });
+            }
+        },
+        None => match tx.commit().await {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(AppError {
+                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: Some(format!(
+                        "Could not check for existing user at this time: {}",
+                        e
+                    )),
+                });
+            }
+        },
+    };
+    Ok(SuccessPopupResponse {
+        message: "Your loan application has been received, please check your email for further instructions.".to_string(),
+        tera: tera,
+        path: "src/templates/index.html",
+        context: std::collections::HashMap::new(),
+    })
+}
+/// Create a new provider from uncommitted form data
+pub async fn register_provider<'a>(
+    pool: &sqlx::PgPool,
+    client: aws_sdk_s3::Client,
+    tera: &'a mut tera::Tera,
+    user_data: &UserData,
+    profile_data: &ProviderProfileData,
+) -> Result<SuccessPopupResponse<'a>, AppError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|_| AppError {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: None,
+        })
+        .unwrap();
+    // Check if provider with email, phone number or business name already exists
+    match models::ProviderProfile::find_by_email(&pool, &user_data.email).await {
+        Ok(existing_profile) => {
+            // Check if the existing profile is already verified
+            if existing_profile.is_verified {
+                return Err(AppError {
+                    status_code: StatusCode::BAD_REQUEST,
+                    message: Some("A provider with this email already exists.".to_string()),
+                });
+            } else {
+                // Otherwise assume resubmission and delete old profile and associated files before creating new one
+                match models::ProviderProfile::delete(&mut tx, existing_profile.id).await {
+                    Ok(_) => {
+                        log::info!(
+                            "Deleted unverified provider profile with ID: {}",
+                            existing_profile.id
+                        );
+                    }
+                    Err(e) => {
+                        log::error!("Error deleting existing provider profile: {}", e);
+                        return Err(AppError {
+                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                            message: Some(
+                                "Could not process your application at this time.".to_string(),
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // If user doesn't exist, check that submitted data isn't alredy assigned to another profile
+            match models::ProviderProfile::verify_unique_provider_profile(
+                &pool,
+                &user_data.email,
+                &profile_data.business_name,
+                &profile_data.phone_number,
+            )
+            .await
+            {
+                Ok(existing_profile) => {
+                    log::warn!(
+                        "Provider with phone number {} or business name {} already exists.\n Please log in instead.",
+                        existing_profile.phone_number,
+                        existing_profile.business_name
+                    );
+                    return Err(AppError {
+                        status_code: StatusCode::BAD_REQUEST,
+                        message: Some("A provider with this profile already exists.".to_string()),
+                    });
+                }
+                Err(sqlx::Error::RowNotFound) => {
+                    // Data appears unique, continue
+                }
+                Err(e) => {
+                    log::error!("Error checking for existing provider: {}", e);
+                    return Err(AppError {
+                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                        message: Some(
+                            "Could not check for existing provider at this time.".to_string(),
+                        ),
+                    });
+                }
+            };
+        }
+        Err(e) => {
+            log::error!("Error checking for existing provider: {}", e);
+            return Err(AppError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: Some("Could not check for existing provider at this time.".to_string()),
+            });
+        }
+    };
+    let mut err: Option<AppError> = None;
+    // If no profile exists, create a new profile
+    match models::ProviderProfile::create(&mut tx, &profile_data, &client).await {
+        Ok(new_profile) => {
+            log::info!(
+                "Created provider profile for user ID: {}",
+                new_profile.user_id
+            );
+        }
+        Err(sqlx::Error::Database(e)) => {
+            if e.code() == Some("23505".into()) {
+                err = Some(AppError {
+                    status_code: StatusCode::BAD_REQUEST,
+                    message: Some("A provider with this profile already exists.".to_string()),
+                });
+            } else {
+                log::error!("Error creating provider profile: {}", e);
+                err = Some(AppError {
+                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: Some("Could not create provider profile at this time.".to_string()),
+                });
+            }
+        }
+        Err(e) => {
+            log::error!("Error creating provider profile: {}", e);
+            return Err(AppError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: Some("Could not create provider profile at this time.".to_string()),
+            });
+        }
+    };
+    // Commit if no errors, or rollback
+    if err.is_none() {
+        tx.commit()
+            .await
+            .map_err(|_| AppError {
+                status_code: StatusCode::BAD_REQUEST,
+                message: None,
+            })
+            .unwrap();
+        return Ok(SuccessPopupResponse {
+            message: "Your provider application has been received, please check your email for further instructions.".to_string(),
+            tera: tera,
+            path: "src/templates/index.html",
+            context: std::collections::HashMap::new(),
+        });
+    } else {
+        tx.rollback()
+            .await
+            .map_err(|_| AppError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: None,
+            })
+            .unwrap();
+        return Err(err.unwrap());
+    }
+}

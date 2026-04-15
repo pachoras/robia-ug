@@ -160,34 +160,6 @@ function handleCredentialResponse(response) {
     });
 }
 
-// Login page button selection
-function selectButton(button) {
-  const loansButton = document.querySelector(".login-button-group-loans");
-  const proButton = document.querySelector(".login-button-group-pro");
-  const applicationInput = document.getElementById("application");
-  applicationInput.value = button; // Set the hidden input value to the selected button
-
-  if (button === "loans") {
-    // Remove styles from pro button and add to loans button
-    proButton.classList.add("no-border");
-    proButton.classList.add("muted-background");
-    proButton.classList.remove("generic-stroke");
-    // Add styles to loans button
-    loansButton.classList.remove("no-border");
-    loansButton.classList.remove("muted-background");
-    loansButton.classList.add("generic-stroke");
-  } else if (button === "pro") {
-    // Remove styles from loans button and add to pro button
-    loansButton.classList.add("no-border");
-    loansButton.classList.add("muted-background");
-    loansButton.classList.remove("generic-stroke");
-    // Add styles to pro button
-    proButton.classList.remove("no-border");
-    proButton.classList.remove("muted-background");
-    proButton.classList.add("generic-stroke");
-  }
-}
-
 // Forgot password input value matching
 let newPassword = document.getElementById("new-password");
 let confirmPassword = document.getElementById("confirm-password");
@@ -201,13 +173,67 @@ if (newPassword && confirmPassword) {
   });
 }
 
-window.onload = () => {
+let selected_application = "loans";
+
+window.onload = function () {
   if (window.location.pathname === "/login") {
-    document
-      .getElementById("login-button-loans")
-      .addEventListener("click", () => selectButton("loans"));
-    document
-      .getElementById("login-button-pro")
-      .addEventListener("click", () => selectButton("pro"));
+    // On select login application, set hidden input value to selected application
+    let loanApplicationButton = document.getElementById("login-button-loans");
+    let proApplicationButton = document.getElementById("login-button-pro");
+    let applicationInput = document.getElementById("application");
+
+    loanApplicationButton.addEventListener("click", () => {
+      applicationInput.value = "loans";
+      selected_application = applicationInput.value;
+      loanApplicationButton.classList.add("login-button-active");
+      loanApplicationButton.classList.remove("login-button-rest");
+      proApplicationButton.classList.add("pro-button-rest");
+      proApplicationButton.classList.remove("pro-button-active");
+    });
+
+    proApplicationButton.addEventListener("click", () => {
+      applicationInput.value = "pro";
+      selected_application = applicationInput.value;
+      proApplicationButton.classList.add("pro-button-active");
+      proApplicationButton.classList.remove("pro-button-rest");
+      loanApplicationButton.classList.add("login-button-rest");
+      loanApplicationButton.classList.remove("login-button-active");
+    });
+
+    // Set default selected application to loans
+    applicationInput.value = "loans";
+  } else if (window.location.pathname === "/") {
+    // Select default subscription plan on pricing page
+    let beginnerPlanButton = document.getElementById("beginner-plan-button");
+    let beginnerPlanCard = document.getElementById("beginner-plan-card");
+    let proPlanButton = document.getElementById("pro-plan-button");
+    let proPlanCard = document.getElementById("pro-plan-card");
+    let ultimatePlanButton = document.getElementById("ultimate-plan-button");
+    let ultimatePlanCard = document.getElementById("ultimate-plan-card");
+    let planInput = document.getElementById("plan");
+
+    beginnerPlanButton.addEventListener("click", () => {
+      planInput.value = "beginner";
+      beginnerPlanCard.classList.add("payment-card-selected");
+      proPlanCard.classList.remove("payment-card-selected");
+      ultimatePlanCard.classList.remove("payment-card-selected");
+    });
+
+    proPlanButton.addEventListener("click", () => {
+      planInput.value = "pro";
+      proPlanCard.classList.add("payment-card-selected");
+      beginnerPlanCard.classList.remove("payment-card-selected");
+      ultimatePlanCard.classList.remove("payment-card-selected");
+    });
+
+    ultimatePlanButton.addEventListener("click", () => {
+      planInput.value = "ultimate";
+      ultimatePlanCard.classList.add("payment-card-selected");
+      beginnerPlanCard.classList.remove("payment-card-selected");
+      proPlanCard.classList.remove("payment-card-selected");
+    });
+
+    // Set default selected plan to beginner
+    planInput.value = "beginner";
   }
 };

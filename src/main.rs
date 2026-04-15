@@ -12,6 +12,7 @@ mod routes;
 mod session;
 mod state;
 mod utils;
+mod workflows;
 
 use axum::{
     Router,
@@ -74,8 +75,11 @@ fn init_router(state: state::AppState) -> Router {
 
     Router::new()
         .route("/", get(routes::index))
-        .route("/register-loan", post(routes::register_loan))
-        .route("/register-loan", get(routes::register_loan_redirect))
+        .route("/register-loan", post(routes::register_loan_application))
+        .route(
+            "/register-provider",
+            post(routes::register_provider_application),
+        )
         .route("/verify-token/{token}", get(routes::verify_token))
         .route("/update-password", post(routes::update_password))
         .route("/login", get(routes::login_page))

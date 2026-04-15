@@ -36,7 +36,9 @@ $color-black-fade: #282828;
 $color-bg: #444140;
 $color-accent-red: #ff1654;
 $color-accent-red-fade: rgba($color-accent-red, 0.5);
+$color-accent-maroon: #e2003c;
 $color-accent-blue: #247ba0;
+$color-accent-purple: #9000b1;
 $color-grey: #aaaaaa;
 $color-grey-light: #e3e3e3;
 $color-login-grey: rgba(217, 217, 217, 0.25);
@@ -81,10 +83,114 @@ $radius-lg: 16px;
   flex-direction: row;
 }
 
+%strong {
+  font-weight: 600;
+}
+
 @mixin heading-size($size, $margin-bottom) {
   @extend %heading-base;
   font-size: $size;
   margin-bottom: $margin-bottom;
+}
+
+/* 18.6 Media Queries & Responsive Utilities */
+// media aliases and breakpoints
+$screen-sm-min: 600px;
+$screen-md-min: 960px;
+$screen-lg-min: 1280px;
+$screen-xl-min: 1920px;
+
+$screen-xs-max: 599px;
+$screen-sm-max: 959px;
+$screen-md-max: 1279px;
+$screen-lg-max: 1919px;
+$screen-xl-max: 5000px;
+
+// From media-queries-scss-mixins by Necromancerx
+// https://github.com/Necromancerx/media-queries-scss-mixins
+// media devices
+// Mobile Phones
+@mixin xs {
+  @media screen and (max-width: #{$screen-xs-max}) {
+    @content;
+  }
+}
+
+// Tablets and readers
+@mixin sm {
+  @media screen and (min-width: #{$screen-sm-min}) and (max-width: #{$screen-sm-max}) {
+    @content;
+  }
+}
+
+// General desktop
+@mixin md {
+  @media screen and (min-width: #{$screen-md-min}) and (max-width: #{$screen-md-max}) {
+    @content;
+  }
+}
+
+// Common laptops
+@mixin lg {
+  @media screen and (min-width: #{$screen-lg-min}) and (max-width: #{$screen-lg-max}) {
+    @content;
+  }
+}
+
+@mixin xl {
+  @media screen and (min-width: #{$screen-xl-min}) and (max-width: #{$screen-xl-max}) {
+    @content;
+  }
+}
+
+// media lt queries
+@mixin lt-sm {
+  @media screen and (max-width: #{$screen-xs-max}) {
+    @content;
+  }
+}
+
+@mixin lt-md {
+  @media screen and (max-width: #{$screen-sm-max}) {
+    @content;
+  }
+}
+
+@mixin lt-lg {
+  @media screen and (max-width: #{$screen-md-max}) {
+    @content;
+  }
+}
+
+@mixin lt-xl {
+  @media screen and (max-width: #{$screen-lg-max}) {
+    @content;
+  }
+}
+
+// media gt queries
+@mixin gt-xs {
+  @media screen and (min-width: #{$screen-sm-min}) {
+    @content;
+  }
+}
+
+@mixin gt-sm {
+  @media screen and (min-width: #{$screen-md-min}) {
+    @content;
+  }
+}
+
+@mixin gt-md {
+  @media screen and (min-width: #{$screen-lg-min}) {
+    @content;
+  }
+}
+
+@mixin gt-lg {
+  @media screen and (min-width: #{$screen-xl-min}) {
+    @content;
+  }
 }
 
 /* ==========================================================================
@@ -95,6 +201,7 @@ html {
   font-family: $font-family-base;
   color: $color-white;
   background: $color-bg;
+  scroll-padding-top: 2rem;
   background: linear-gradient(
     180deg,
     rgba(68, 65, 64, 1) 37%,
@@ -139,8 +246,32 @@ main {
   border: none;
 }
 
-.muted-background {
+.no-margin {
+  margin: 0;
+}
+
+.no-bottom-margin {
+  margin-bottom: 0;
+}
+
+.no-top-margin {
+  margin-top: 0;
+}
+
+.no-padding {
+  padding: 0;
+}
+
+.bottom-padding {
+  padding: 0 0 1rem 0;
+}
+
+.highlighted-background {
   background-color: $color-grey-light;
+}
+
+.accented-background-light {
+  background-color: rgba(69, 105, 144, 0.5);
 }
 
 /* ==========================================================================
@@ -171,6 +302,9 @@ h6 {
   @include heading-size(1rem, 0.0625rem);
 }
 
+.h7 {
+  @include heading-size(0.875rem, 0);
+}
 .shallow {
   padding: 0;
   margin: 0.5rem;
@@ -208,6 +342,7 @@ h6 {
   background-color: $color-accent-red;
   padding: 0.125rem 0.5rem 0.125rem 0.5rem;
   margin: 0;
+  white-space: nowrap;
 }
 
 .highlight-blue {
@@ -250,12 +385,22 @@ h6 {
   padding: 1rem;
   width: 60vw;
   height: 100%;
+
+  @include xs {
+    width: 100%;
+  }
 }
 
+// 20% for sidebar, 60% for main content, 20% for spacing on either side
+// Don't put anything in the side containers, just use them for spacing and centering the main content
 .container-side {
   @extend %flex-center;
   padding: 1rem;
   width: 20vw;
+
+  @include xs {
+    display: none;
+  }
 }
 
 .section {
@@ -349,6 +494,42 @@ h6 {
     align-items: center;
     justify-content: center;
   }
+
+  @include xs {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1rem;
+  }
+}
+
+.sub-section {
+  @extend %flex-row;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+.payment-card-section {
+  @extend %flex-row;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 1rem;
+
+  @include sm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  @include xs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
 }
 
 /* ==========================================================================
@@ -414,6 +595,20 @@ h6 {
 
 /* 7.1 Hero / Banner */
 /* 7.2 Cards */
+.payment-card {
+  color: $color-white;
+  border-radius: $radius-md;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 0.2rem solid $color-accent-blue;
+  width: 15rem;
+}
+
+.payment-card-selected {
+  border: 0.2rem solid $color-accent-red;
+  box-shadow: rgba(0, 0, 0, 0.56) 0px 22px 70px 4px;
+}
+
 /* 7.3 Tables */
 /* 7.4 Lists */
 
@@ -448,6 +643,13 @@ h6 {
     display: flex;
     flex-direction: row;
     align-items: flex-start;
+
+    @include xs {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
   }
 }
 
@@ -466,6 +668,25 @@ h6 {
   border-radius: $radius-md;
   cursor: pointer;
   transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: darken($color-accent-red, 10%);
+  }
+
+  &:active {
+    background-color: darken($color-accent-red, 20%);
+  }
+}
+
+.submit-button-wide {
+  background-color: $color-accent-blue;
+  color: $color-white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 100%;
 
   &:hover {
     background-color: darken($color-accent-red, 10%);
@@ -502,40 +723,68 @@ h6 {
   align-items: center;
   justify-content: center;
   margin: 1rem;
+}
 
-  &-loans {
-    background-color: $color-accent-blue;
-    color: $color-white;
-    padding: 0.5rem 1rem;
-    border-radius: $radius-md 0 0 $radius-md;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+.loans-login-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0 1rem 1rem;
 
-    &:hover {
-      background-color: darken($color-accent-blue, 10%);
-    }
+  color: $color-white;
+  padding: 0.5rem 1rem;
+  border-radius: $radius-md 0 0 $radius-md;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
 
-    &:active {
-      background-color: darken($color-accent-blue, 20%);
-    }
+  &:hover {
+    background-color: darken($color-accent-maroon, 10%);
   }
+}
 
-  &-pro {
-    background-color: $color-accent-red;
-    color: $color-white;
-    padding: 0.5rem 1rem;
-    border-radius: 0 $radius-md $radius-md 0;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+.login-button-rest {
+  background-color: darken($color-accent-maroon, 10%);
+}
 
-    &:hover {
-      background-color: darken($color-accent-red, 20%);
-    }
+.login-button-active {
+  box-shadow: rgba(0, 0, 0, 0.56) 0px 22px 70px 4px;
+  background-color: $color-accent-maroon;
+  border: solid 1px $color-white;
+}
 
-    &:active {
-      background-color: darken($color-accent-red, 30%);
-    }
+.pro-login-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 1rem 1rem 0;
+
+  color: $color-white;
+  padding: 0.5rem 1rem;
+  border-radius: 0 $radius-md $radius-md 0;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: darken($color-accent-blue, 20%);
   }
+}
+
+.pro-button-rest {
+  background-color: darken($color-accent-blue, 10%);
+}
+
+.pro-button-active {
+  box-shadow: rgba(0, 0, 0, 0.56) 0px 22px 70px 4px;
+  background-color: $color-accent-blue;
+  border: solid 1px $color-white;
+}
+
+.focused {
+  box-shadow: rgba(0, 0, 0, 0.56) 0px 22px 70px 4px;
+  background-color: $color-accent-blue;
+  border: solid 1px $color-white;
 }
 
 // Google Sign-In Button
@@ -555,6 +804,19 @@ h6 {
 /* 10.1 Toast Messages */
 /* 10.2 Inline Alerts */
 /* 10.3 Badges & Tags */
+
+%badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: $radius-sm;
+  font-size: 0.75rem;
+  color: $color-white;
+}
+
+.purple-tag {
+  @extend %badge;
+  background-color: $color-accent-purple;
+}
 
 /* ==========================================================================
     11. Pagination

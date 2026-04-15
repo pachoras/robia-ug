@@ -1,10 +1,11 @@
 use axum::body::Bytes;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use sqlx::postgres::PgRow;
 use sqlx::types::chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-use crate::mail::send_email;
+use crate::forms::ProviderProfileData;
 use crate::{files, forms, utils};
 
 /// Helper function to commit a transaction if the result is Ok, or rollback if it's an Err. Returns the unwrapped result or error.
@@ -53,73 +54,59 @@ impl User {
     }
 
     /// Creates a new user. Returns the created user or an error if there's a database issue.
-    pub async fn create(pool: &sqlx::PgPool, create_user: &User) -> Result<User, sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let res = sqlx::query_as::<_, User>(
+    /// Note that this function does not commit (flush) contents
+    pub async fn create<'a>(
+        tx: &mut sqlx::Transaction<'a, sqlx::Postgres>,
+        create_user: &User,
+    ) -> Result<User, sqlx::Error> {
+        sqlx::query_as::<_, User>(
             "INSERT INTO users (email, password_hash, salt) VALUES ($1, $2, $3) RETURNING *",
         )
         .bind(&create_user.email)
         .bind(&create_user.password_hash)
         .bind(&create_user.salt)
-        .fetch_one(&mut *tx)
-        .await;
-        commit_else_rollback(tx, res).await
+        .fetch_one(&mut **tx)
+        .await
     }
-
     /// Deletes a user by its ID. Returns an error if there's a database issue.
-    pub async fn delete(pool: &sqlx::PgPool, id: i32) -> Result<(), sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query("DELETE FROM users WHERE id = $1")
+    pub async fn delete<'a>(
+        tx: &mut sqlx::Transaction<'a, sqlx::Postgres>,
+        id: i32,
+    ) -> Result<Option<PgRow>, sqlx::Error> {
+        sqlx::query("DELETE FROM users WHERE id = $1")
             .bind(&id)
-            .fetch_optional(&mut *tx)
-            .await;
-        commit_else_rollback(tx, result).await?;
-        Ok(())
+            .fetch_optional(&mut **tx)
+            .await
     }
     /// Reads a user by its ID. Returns an error if not found or if there's a database issue.
     pub async fn find(pool: &sqlx::PgPool, id: i32) -> Result<User, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
             .bind(&id)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
     /// Finds a user profile by its email. Returns an error if not found or if there's a database issue.
     pub async fn find_by_email(pool: &sqlx::PgPool, email: &String) -> Result<User, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
             .bind(&email)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
     /// Updates a user by its ID. Returns the updated user or an error if there's a database issue.
-    pub async fn update(pool: &sqlx::PgPool, id: i32, data: &User) -> Result<User, sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query_as::<_, User>(
+    pub async fn update<'a>(
+        tx: &mut sqlx::Transaction<'a, sqlx::Postgres>,
+        id: i32,
+        data: &User,
+    ) -> Result<User, sqlx::Error> {
+        sqlx::query_as::<_, User>(
                 "UPDATE users SET email = $1, password_hash = $2, salt = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *",
             )
             .bind(&data.email)
             .bind(&data.password_hash)
             .bind(&data.salt)
             .bind(&id)
-            .fetch_one(&mut *tx)
-            .await;
-        commit_else_rollback(tx, result).await
-    }
-    /// Creates a new loan applicant user and sends them a verification email. Returns the created user or an error if there's a database issue.
-    pub async fn create_loan_applicant(
-        pool: &sqlx::PgPool,
-        email: &String,
-    ) -> Result<User, sqlx::Error> {
-        let user = User::new(email.clone(), utils::generate_random_string(12));
-        match User::create(pool, &user).await {
-            Ok(created_user) => {
-                // Also create registration token for user
-                ApplicationToken::create_registration_token(pool, &created_user).await?;
-                Ok(created_user)
-            }
-            Err(e) => return Err(e),
-        }
+            .fetch_one(&mut **tx)
+            .await
     }
 }
 
@@ -164,11 +151,10 @@ impl UserProfile {
     }
     /// Creates a new user profile. Returns the created profile or an error if there's a database issue.
     pub async fn create(
-        pool: &sqlx::PgPool,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         s3_client: &aws_sdk_s3::Client,
         profile: &forms::UserProfileData,
     ) -> Result<UserProfile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         // Get correct file names for proof of address and national ID files based on user ID and file formats
         let proof_of_address_file_name = files::get_proof_of_address_path(
             &profile.user_id,
@@ -183,44 +169,51 @@ impl UserProfile {
             &profile.national_id_back_file_format,
         );
 
-        let mut result: Result<UserProfile, sqlx::Error> = sqlx::query_as("INSERT INTO user_profiles (user_id, full_name, phone_number, proof_of_address, national_id_front, national_id_back, google_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *")
-            .bind(&profile.user_id)
-            .bind(&profile.full_name)
-            .bind(&profile.phone_number)
-            .bind(&proof_of_address_file_name)
-            .bind(&national_id_front_file_name)
-            .bind(&national_id_back_file_name)
-            .bind(&profile.google_id)
-            .fetch_one(&mut *tx)
-            .await;
-        result = commit_else_rollback(tx, result).await;
+        let result: Result<UserProfile, sqlx::Error> = sqlx::query_as(
+            r#"
+            INSERT INTO user_profiles (user_id, full_name, phone_number, proof_of_address,
+                national_id_front, national_id_back, google_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *"#,
+        )
+        .bind(&profile.user_id)
+        .bind(&profile.full_name)
+        .bind(&profile.phone_number)
+        .bind(&proof_of_address_file_name)
+        .bind(&national_id_front_file_name)
+        .bind(&national_id_back_file_name)
+        .bind(&profile.google_id)
+        .fetch_one(&mut **tx)
+        .await;
 
-        // Get additional files if they exist
+        let _client = s3_client.clone();
+        let _profile = profile.clone();
+
+        // Prepare data map with file paths to upload
         let mut data_map = HashMap::new();
-        if let Some(additional_files) = &profile.additional_files {
+        if let Some(additional_files) = &_profile.additional_files {
             for (file_name, data) in additional_files.iter() {
-                let file_path = files::get_additional_file_path(&profile.user_id, file_name);
+                let file_path = files::get_additional_file_path(&_profile.user_id, file_name);
+                let _path = file_path.clone();
                 let data = Bytes::from(data.clone());
                 data_map.insert(file_path, data);
+                // Also create additional file entries in database
+                let file = AdditionalFile::new(_profile.user_id, &_path);
+                AdditionalFile::create(tx, &file).await?;
             }
         }
 
-        // Upload proof of address file to cloud storage
-        let proof_of_address_data = Bytes::from(profile.proof_of_address.clone());
-        data_map.insert(proof_of_address_file_name.clone(), proof_of_address_data);
-
-        // Upload national ID front file to cloud storage
-        let national_id_front_data = Bytes::from(profile.national_id_front.clone());
-        data_map.insert(national_id_front_file_name.clone(), national_id_front_data);
-
-        // Upload national ID back file to cloud storage
-        let national_id_back_data = Bytes::from(profile.national_id_back.clone());
-        data_map.insert(national_id_back_file_name.clone(), national_id_back_data);
-
-        // Upload files in background task to avoid blocking the main thread
-        let _client = s3_client.clone();
-
+        // Upload additional files in the background
         tokio::spawn(async move {
+            // Set up data objects for upload
+            let proof_of_address_data = Bytes::from(_profile.proof_of_address.clone());
+            data_map.insert(proof_of_address_file_name.clone(), proof_of_address_data);
+
+            let national_id_front_data = Bytes::from(_profile.national_id_front.clone());
+            data_map.insert(national_id_front_file_name.clone(), national_id_front_data);
+
+            let national_id_back_data = Bytes::from(_profile.national_id_back.clone());
+            data_map.insert(national_id_back_file_name.clone(), national_id_back_data);
+
             // Upload additional files to S3
             for (file_name, data) in data_map.iter() {
                 match files::upload_file_to_s3(&_client, file_name, data.to_owned()).await {
@@ -237,18 +230,16 @@ impl UserProfile {
     }
     /// Reads a user profile by its user ID. Returns an error if not found or if there's a database issue.
     pub async fn find(pool: &sqlx::PgPool, user_id: i32) -> Result<UserProfile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as("SELECT * FROM user_profiles WHERE user_id = $1")
             .bind(&user_id)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
     /// Updates a user profile by its user ID. Returns the updated profile or an error if there's a database issue.
     pub async fn update(
-        pool: &sqlx::PgPool,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         profile: &UserProfile,
     ) -> Result<UserProfile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as("UPDATE user_profiles SET full_name = $1, phone_number = $2, proof_of_address = $3, national_id_front = $4, national_id_back = $5 WHERE user_id = $6 RETURNING *")
             .bind(&profile.full_name)
             .bind(&profile.phone_number)
@@ -256,17 +247,19 @@ impl UserProfile {
             .bind(&profile.national_id_front)
             .bind(&profile.national_id_back)
             .bind(&profile.user_id)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
     }
     /// Deletes a user profile by its user ID. Returns an error if there's a database issue.
-    pub async fn delete(pool: &sqlx::PgPool, user_id: i32) -> Result<(), sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query("DELETE FROM user_profiles WHERE user_id = $1")
+    pub async fn delete(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM user_profiles WHERE user_id = $1")
             .bind(&user_id)
-            .fetch_optional(&mut *tx)
-            .await;
-        commit_else_rollback(tx, result).await?;
+            .fetch_optional(&mut **tx)
+            .await
+            .unwrap();
         Ok(())
     }
     /// Finds a user profile by its phone number. Returns an error if not found or if there's a database issue.
@@ -274,10 +267,9 @@ impl UserProfile {
         pool: &sqlx::PgPool,
         phone_number: &String,
     ) -> Result<UserProfile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as("SELECT * FROM user_profiles WHERE phone_number = $1")
             .bind(&phone_number)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
     /// Finds a user profile by its email. Returns an error if not found or if there's a database issue.
@@ -285,13 +277,253 @@ impl UserProfile {
         pool: &sqlx::PgPool,
         email: &String,
     ) -> Result<UserProfile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE email = $1")
             .bind(&email)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
 }
+
+#[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
+pub struct ProviderProfile {
+    pub id: i32,
+    pub user_id: i32,
+    pub business_name: String,
+    pub employee_name: String,
+    pub employee_national_id: String,
+    pub phone_number: String,
+    pub employee_count: i32,
+    pub certificate_of_incorporation: String,
+    pub loan_license: String,
+    pub business_proof_of_address: String,
+    pub is_verified: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl ProviderProfile {
+    // Create new empty provider profile object
+    pub fn new(
+        user_id: i32,
+        business_name: String,
+        employee_name: String,
+        employee_national_id: String,
+        phone_number: String,
+        employee_count: i32,
+        certificate_of_incorporation: String,
+        loan_license: String,
+        business_proof_of_address: String,
+    ) -> Self {
+        ProviderProfile {
+            id: 0, // This will be set by the database
+            user_id,
+            business_name,
+            employee_name,
+            employee_national_id,
+            phone_number,
+            employee_count,
+            certificate_of_incorporation,
+            loan_license,
+            business_proof_of_address,
+            is_verified: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(), // This will be set by the database
+        }
+    }
+    /// Creates a new provider profile. Returns the created profile or an error if there's a database issue.
+    pub async fn create(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        profile: &ProviderProfileData,
+        client: &aws_sdk_s3::Client,
+    ) -> Result<ProviderProfile, sqlx::Error> {
+        let result = sqlx::query_as(r#"
+            INSERT INTO provider_profiles (user_id, business_name, employee_name, employee_national_id, phone_number,
+            employee_count, certificate_of_incorporation, loan_license, business_proof_of_address)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *"#)
+            .bind(&profile.user_id)
+            .bind(&profile.business_name)
+            .bind(&profile.employee_name)
+            .bind(&profile.employee_national_id)
+            .bind(&profile.phone_number)
+            .bind(&profile.employee_count)
+            .bind(&profile.certificate_of_incorporation)
+            .bind(&profile.loan_license)
+            .bind(&profile.business_proof_of_address)
+            .fetch_one(&mut **tx).await;
+        // Also upload files
+        let _profile = profile.clone();
+        let _client = client.clone();
+        tokio::spawn(async move {
+            let business_proof_of_address_path_file_name =
+                files::get_business_proof_of_address_path(
+                    &_profile.user_id,
+                    &_profile.business_proof_of_address_file_format,
+                );
+            let business_loan_license_path_file_name = files::get_business_loan_license_path(
+                &_profile.user_id,
+                &_profile.loan_license_file_format,
+            );
+            let certificate_of_incorporation_file_name =
+                files::get_certificate_of_incorporation_path(
+                    &_profile.user_id,
+                    &_profile.certificate_of_incorporation_file_format,
+                );
+
+            // Set up data objects for upload
+            let mut data_map = HashMap::new();
+            let proof_of_address_data = Bytes::from(_profile.business_proof_of_address.clone());
+            data_map.insert(
+                business_proof_of_address_path_file_name.clone(),
+                proof_of_address_data,
+            );
+            let loan_license_data = Bytes::from(_profile.loan_license.clone());
+            data_map.insert(
+                business_loan_license_path_file_name.clone(),
+                loan_license_data,
+            );
+            let certificate_of_incorporation_data =
+                Bytes::from(_profile.certificate_of_incorporation.clone());
+            data_map.insert(
+                certificate_of_incorporation_file_name.clone(),
+                certificate_of_incorporation_data,
+            );
+
+            for (file_name, data) in data_map.iter() {
+                match files::upload_file_to_s3(&_client, file_name, data.to_owned()).await {
+                    Ok(_) => {
+                        log::info!("Uploaded file {}", file_name,);
+                    }
+                    Err(e) => {
+                        log::error!("Error uploading file {}: {}", file_name, e);
+                    } // Continue with other files even if one fails
+                }
+            }
+        });
+        result
+    }
+    /// Finds a provider profile by user ID. Returns the profile or an error if not found or if there's a database issue.
+    pub async fn find(pool: &sqlx::PgPool, user_id: i32) -> Result<ProviderProfile, sqlx::Error> {
+        sqlx::query_as("SELECT * FROM provider_profiles WHERE user_id = $1")
+            .bind(&user_id)
+            .fetch_one(pool)
+            .await
+    }
+    // Find provider profile by email address
+    pub async fn find_by_email(
+        pool: &sqlx::PgPool,
+        email: &String,
+    ) -> Result<ProviderProfile, sqlx::Error> {
+        sqlx::query_as::<_, ProviderProfile>("SELECT * FROM provider_profiles WHERE email = $1")
+            .bind(&email)
+            .fetch_one(pool)
+            .await
+    }
+    /// Deletes a provider profile by user ID. Returns an error if there's a database issue.
+    pub async fn delete(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM provider_profiles WHERE user_id = $1")
+            .bind(&user_id)
+            .fetch_optional(&mut **tx)
+            .await;
+        Ok(())
+    }
+    /// Verifies that no other profile has the same email, business name or phone number.
+    /// Returns the profile or an error if not found or if there's a database issue.
+    pub async fn verify_unique_provider_profile(
+        pool: &sqlx::PgPool,
+        email: &String,
+        business_name: &String,
+        phone_number: &String,
+    ) -> Result<ProviderProfile, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        // Check business name uniqueness
+        match sqlx::query_as::<_, ProviderProfile>(
+            "SELECT * FROM provider_profiles WHERE business_name = $1",
+        )
+        .bind(&business_name)
+        .fetch_one(&mut *tx)
+        .await
+        {
+            Ok(_) => {
+                log::error!("Profile found, business name not unique: {}", business_name);
+                Err(sqlx::Error::InvalidArgument(
+                    "Business name must be unique".to_string(),
+                ))
+            }
+            Err(_) => {
+                // Continue
+                Ok(())
+            }
+        };
+        //Check phone number uniqueness
+        match sqlx::query_as::<_, ProviderProfile>(
+            "SELECT * FROM provider_profiles WHERE phone_number = $1",
+        )
+        .bind(&phone_number)
+        .fetch_one(&mut *tx)
+        .await
+        {
+            Ok(_) => {
+                log::error!(
+                    "Profile found, business phone_number not unique: {}",
+                    phone_number
+                );
+                Err(sqlx::Error::RowNotFound)
+            }
+            Err(_) => {
+                // Continue
+                Ok(())
+            }
+        };
+        //Check email uniqueness
+        match sqlx::query_as::<_, ProviderProfile>(
+            "SELECT * FROM provider_profiles WHERE email = $1",
+        )
+        .bind(&email)
+        .fetch_one(&mut *tx)
+        .await
+        {
+            Ok(_) => {
+                log::error!("Profile found, business email not unique: {}", email);
+                Err(sqlx::Error::RowNotFound)
+            }
+            Err(_) => {
+                // Continue
+                Ok(())
+            }
+        };
+        // Finally, return uncommitted profile with provided data
+        Ok(ProviderProfile::new(
+            0, // user_id will be set when profile is created
+            business_name.to_string(),
+            String::new(), // employee name not needed for uniqueness check
+            String::new(), // employee national ID not needed for uniqueness check
+            phone_number.to_string(),
+            0,             // employee count not needed for uniqueness check
+            String::new(), // certificate of incorporation not needed for uniqueness check
+            String::new(), // loan license not needed for uniqueness check
+            String::new(), // business proof of address not needed for uniqueness check
+        ))
+    }
+}
+
+pub enum SubscriptionTypeVariants {
+    Beginner,
+    Pro,
+    Ultimate,
+}
+
+#[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
+pub struct Subscription {
+    pub id: i32,
+    pub user_id: i32,
+    pub subscription_type: i32,
+    pub start_date: DateTime<Utc>,
+    pub end_date: DateTime<Utc>,
+}
+
 pub enum TokenTypeVariants {
     PasswordReset,
     LoansEmailVerification,
@@ -334,19 +566,17 @@ impl ApplicationToken {
     }
     /// Creates a new application token. Returns the created token or an error if there's a database issue.
     pub async fn create(
-        pool: &sqlx::PgPool,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         create_token: &ApplicationToken,
     ) -> Result<ApplicationToken, sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query_as::<_, ApplicationToken>(
+        sqlx::query_as::<_, ApplicationToken>(
             "INSERT INTO application_tokens (token, user_id, token_type) VALUES ($1, $2, $3) RETURNING *",
         )
         .bind(&create_token.token)
         .bind(&create_token.user_id)
         .bind(&create_token.token_type)
-        .fetch_one(&mut *tx)
-        .await;
-        commit_else_rollback(tx, result).await
+        .fetch_one(&mut **tx)
+        .await
     }
     /// Deletes a registration token by its token string. Returns an error if there's a database issue.
     pub async fn delete(pool: &sqlx::PgPool, token: &String) -> Result<(), sqlx::Error> {
@@ -395,11 +625,9 @@ impl ApplicationToken {
         pool: &sqlx::PgPool,
         token: &String,
     ) -> Result<ApplicationToken, sqlx::Error> {
-        log::info!("Finding token: {}", token);
-        let mut tx = pool.begin().await?;
         sqlx::query_as::<_, ApplicationToken>("SELECT * FROM application_tokens WHERE token = $1")
             .bind(&token)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
     /// Finds any token by user ID and token type. Returns an error if not found or if there's a database issue.
@@ -425,206 +653,21 @@ impl ApplicationToken {
         .fetch_one(&mut *tx)
         .await
     }
-    /// Verifies a registration token by its token string.
+    /// Verifies a token by its token string.
     pub async fn verify(self, pool: &sqlx::PgPool) -> Result<ApplicationToken, sqlx::Error> {
         let app_token = ApplicationToken::find_by_token(pool, &self.token).await?;
         // Check if token has been used
         if app_token.is_used {
-            log::error!("Registration token {} has already been used", self.token);
+            log::error!("Token {} has already been used", self.token);
             return Err(sqlx::Error::RowNotFound);
         }
         // Check if token is expired (valid for 24 hours)
         let now = Utc::now();
         if now.signed_duration_since(app_token.created_at).num_hours() >= 24 {
-            log::error!("Registration token {} has expired", self.token);
+            log::error!("Token {} has expired", self.token);
             return Err(sqlx::Error::RowNotFound);
         }
         Ok(app_token)
-    }
-    /// Creates a new registration token for a user. Returns the created token or an error if there's a database issue.
-    pub async fn create_registration_token(
-        pool: &sqlx::PgPool,
-        user: &User,
-    ) -> Result<ApplicationToken, sqlx::Error> {
-        let create_token = ApplicationToken::new(
-            user.id,
-            TokenTypeVariants::LoansEmailVerification,
-            utils::generate_random_string(64),
-        );
-        match ApplicationToken::create(&pool, &create_token).await {
-            Ok(token) => {
-                // Send verification email
-                let hostname =
-                    std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost:8000".to_string());
-                let proto: String = if hostname.contains("localhost") {
-                    "http".to_string()
-                } else {
-                    "https".to_string()
-                };
-                let link = format!(
-                    "{}://{}/verify-token/{}",
-                    proto, hostname, create_token.token
-                );
-                let body = format!(
-                    r#"Your loan application has been received, please click the link below to complete your 
-                    registration and view your loan application status. 
-                    
-                    If you cannot click the link, please copy and paste the following URL into your browser:    {}"#,
-                    link
-                );
-                // Send email in background task to avoid blocking the main thread
-                let user = user.clone();
-                tokio::spawn(async move {
-                    send_email(
-                        "Robia Labs <no-reply@robialabs.com>",
-                        &user.email,
-                        "Welcome to Robia Loans",
-                        &body,
-                        &link,
-                        "Verify email",
-                    )
-                    .await
-                    .unwrap();
-                });
-                Ok(token)
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    /// Creates a new password reset token for a user. Returns the created token or an error if there's a database issue.
-    pub async fn create_password_reset_token(
-        pool: &sqlx::PgPool,
-        user: &User,
-    ) -> Result<ApplicationToken, sqlx::Error> {
-        let create_token = ApplicationToken::new(
-            user.id,
-            TokenTypeVariants::PasswordReset,
-            utils::generate_random_string(64),
-        );
-        // First delete any existing password reset tokens for the user to prevent multiple valid tokens at the same time
-        match ApplicationToken::find_any_by_user_id_and_type(
-            pool,
-            user.id,
-            TokenTypeVariants::PasswordReset,
-        )
-        .await
-        {
-            Ok(existing_token) => {
-                log::info!(
-                    "Existing password reset token found for user with email {}, deleting it",
-                    user.email
-                );
-                match ApplicationToken::delete(pool, &existing_token.token).await {
-                    Ok(_) => {
-                        log::info!(
-                            "Deleted existing password reset token for user with email {}",
-                            user.email
-                        );
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Error deleting existing password reset token for user with email {}: {}",
-                            user.email,
-                            e
-                        );
-                        return Err(e);
-                    }
-                }
-            }
-            Err(sqlx::Error::RowNotFound) => {
-                // No existing token found, continue with creating new one
-            }
-            Err(e) => {
-                log::error!(
-                    "Error checking for existing password reset token for user with email {}: {}",
-                    user.email,
-                    e
-                );
-                return Err(e);
-            }
-        }
-
-        match ApplicationToken::create(&pool, &create_token).await {
-            Ok(token) => {
-                // Send verification email
-                let hostname =
-                    std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
-                let proto: String = if hostname == "localhost" {
-                    "http".to_string()
-                } else {
-                    "https".to_string()
-                };
-                let link = format!(
-                    "{}://{}/verify-token/{}",
-                    proto, hostname, create_token.token
-                );
-                let body = format!(
-                    r#"You recently requested a password reset. Please click the link below to reset your password.
-
-                    If you did not request a password reset, please ignore this email or reply to let us know. 
-                    This password reset link is only valid for the next 24 hours.
-                    
-                    If you cannot click the link, please copy and 
-                    paste the following URL into your browser:    {}"#,
-                    link
-                );
-                // Send email in background task to avoid blocking the main thread
-                let user = user.clone();
-                tokio::spawn(async move {
-                    send_email(
-                        "Robia Labs <no-reply@robialabs.com>",
-                        &user.email,
-                        "Password Reset Request",
-                        &body,
-                        &link,
-                        "Reset Password",
-                    )
-                    .await
-                    .unwrap();
-                });
-                Ok(token)
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    /// Creates a new authentication token for a user based on the application variant. Returns the created token or an error if there's a database issue.
-    pub async fn create_auth_token(
-        pool: &sqlx::PgPool,
-        user_id: i32,
-        token_variant: TokenTypeVariants,
-    ) -> Result<ApplicationToken, sqlx::Error> {
-        let create_token: ApplicationToken;
-        match token_variant {
-            TokenTypeVariants::LoansAuthentication => {
-                create_token = ApplicationToken::new(
-                    user_id,
-                    TokenTypeVariants::LoansAuthentication,
-                    utils::generate_random_string(64),
-                );
-            }
-            TokenTypeVariants::ProAuthentication => {
-                create_token = ApplicationToken::new(
-                    user_id,
-                    TokenTypeVariants::ProAuthentication,
-                    utils::generate_random_string(64),
-                );
-            }
-            TokenTypeVariants::AdminAuthentication => {
-                create_token = ApplicationToken::new(
-                    user_id,
-                    TokenTypeVariants::AdminAuthentication,
-                    utils::generate_random_string(64),
-                );
-            }
-            _ => {
-                log::error!("Invalid application variant specified for auth token creation");
-                return Err(sqlx::Error::RowNotFound);
-            }
-        };
-        match ApplicationToken::create(&pool, &create_token).await {
-            Ok(token) => Ok(token),
-            Err(e) => return Err(e),
-        }
     }
 }
 
@@ -633,73 +676,61 @@ pub struct AdditionalFile {
     pub id: i32,
     pub user_id: i32,
     pub file_name: String,
-    pub file_data: Vec<u8>,
-    pub file_format: String,
 }
 
 impl AdditionalFile {
-    pub fn new(user_id: i32, file_name: String, file_data: Vec<u8>, file_format: String) -> Self {
+    pub fn new(user_id: i32, file_name: &String) -> Self {
         AdditionalFile {
-            id: 0, // This will be set by the database
+            id: 0,
             user_id,
-            file_name,
-            file_data,
-            file_format,
+            file_name: file_name.to_string(),
         }
     }
-
+    /// Save additional file details to database
     pub async fn create(
-        pool: &sqlx::PgPool,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         file: &AdditionalFile,
     ) -> Result<AdditionalFile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query_as(
-            "INSERT INTO additional_files (user_id, file_name, file_data, file_format) VALUES ($1, $2, $3, $4) RETURNING *",
+        sqlx::query_as(
+            "INSERT INTO additional_files (user_id, file_name) VALUES ($1, $2, $3, $4) RETURNING *",
         )
         .bind(&file.user_id)
         .bind(&file.file_name)
-        .bind(&file.file_data)
-        .bind(&file.file_format)
-        .fetch_one(&mut *tx)
-        .await;
-        commit_else_rollback(tx, result).await
+        .fetch_one(&mut **tx)
+        .await
     }
-
+    /// Find additional file by id
     pub async fn find(pool: &sqlx::PgPool, id: &i32) -> Result<AdditionalFile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         sqlx::query_as::<_, AdditionalFile>("SELECT * FROM additional_files WHERE id = $1")
             .bind(&id)
-            .fetch_one(&mut *tx)
+            .fetch_one(pool)
             .await
     }
-
-    pub async fn delete(pool: &sqlx::PgPool, id: &i32) -> Result<(), sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query("DELETE FROM additional_files WHERE id = $1")
+    /// Delete additional file
+    pub async fn delete(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        id: &i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM additional_files WHERE id = $1")
             .bind(&id)
-            .fetch_optional(&mut *tx)
-            .await;
-        commit_else_rollback(tx, result).await?;
+            .fetch_optional(&mut **tx)
+            .await?;
         Ok(())
     }
-
+    /// Update the additional file
     pub async fn update(
-        pool: &sqlx::PgPool,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         id: &i32,
         file: &AdditionalFile,
     ) -> Result<AdditionalFile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query_as(
-            "UPDATE additional_files SET user_id = $1, file_name = $2, file_data = $3, file_format = $4 WHERE id = $5 RETURNING *",
+        sqlx::query_as(
+            "UPDATE additional_files SET user_id = $1, file_name = $2 WHERE id = $5 RETURNING *",
         )
         .bind(&file.user_id)
         .bind(&file.file_name)
-        .bind(&file.file_data)
-        .bind(&file.file_format)
         .bind(&id)
-        .fetch_one(&mut *tx)
-        .await;
-        commit_else_rollback(tx, result).await
+        .fetch_one(&mut **tx)
+        .await
     }
 }
 

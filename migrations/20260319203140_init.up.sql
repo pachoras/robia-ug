@@ -23,6 +23,22 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS provider_profiles (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    business_name VARCHAR(255),
+    employee_name VARCHAR(255),
+    employee_national_id VARCHAR(255),
+    phone_number VARCHAR(20),
+    employee_count INTEGER,
+    certificate_of_incorporation VARCHAR(255),
+    loan_license VARCHAR(255),
+    business_proof_of_address VARCHAR(255),
+    is_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS application_tokens (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -37,8 +53,16 @@ CREATE TABLE IF NOT EXISTS additional_files (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     file_name VARCHAR(255) NOT NULL,
-    file_data BYTEA NOT NULL,
-    file_format VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS SUBSCRIPTIONS (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subscription_type INTEGER NOT NULL,
+    start_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    end_date TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

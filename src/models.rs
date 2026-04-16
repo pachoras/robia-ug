@@ -226,7 +226,7 @@ impl UserProfile {
                 }
             }
         });
-        Ok(result.unwrap())
+        result
     }
     /// Reads a user profile by its user ID. Returns an error if not found or if there's a database issue.
     pub async fn find(pool: &sqlx::PgPool, user_id: i32) -> Result<UserProfile, sqlx::Error> {
@@ -408,7 +408,7 @@ impl ProviderProfile {
             .fetch_one(pool)
             .await
     }
-    // Find provider profile by email address
+    /// Find provider profile by email address
     pub async fn find_by_email(
         pool: &sqlx::PgPool,
         email: &String,
@@ -418,6 +418,30 @@ impl ProviderProfile {
             .fetch_one(pool)
             .await
     }
+    /// Find provider profile by business name
+    pub async fn find_by_business_name(
+        pool: &sqlx::PgPool,
+        business_name: &String,
+    ) -> Result<ProviderProfile, sqlx::Error> {
+        sqlx::query_as::<_, ProviderProfile>(
+            "SELECT * FROM provider_profiles WHERE business_name = $1",
+        )
+        .bind(&business_name)
+        .fetch_one(pool)
+        .await
+    }
+    /// Find provider profile by phone number
+    pub async fn find_by_phone_number(
+        pool: &sqlx::PgPool,
+        phone_number: &String,
+    ) -> Result<ProviderProfile, sqlx::Error> {
+        sqlx::query_as::<_, ProviderProfile>(
+            "SELECT * FROM provider_profiles WHERE phone_number = $1",
+        )
+        .bind(&phone_number)
+        .fetch_one(pool)
+        .await
+    }
     /// Deletes a provider profile by user ID. Returns an error if there's a database issue.
     pub async fn delete(
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -426,7 +450,7 @@ impl ProviderProfile {
         sqlx::query("DELETE FROM provider_profiles WHERE user_id = $1")
             .bind(&user_id)
             .fetch_optional(&mut **tx)
-            .await;
+            .await?;
         Ok(())
     }
     /// Verifies that no other profile has the same email, business name or phone number.
@@ -437,61 +461,39 @@ impl ProviderProfile {
         business_name: &String,
         phone_number: &String,
     ) -> Result<ProviderProfile, sqlx::Error> {
-        let mut tx = pool.begin().await?;
         // Check business name uniqueness
-        match sqlx::query_as::<_, ProviderProfile>(
-            "SELECT * FROM provider_profiles WHERE business_name = $1",
-        )
-        .bind(&business_name)
-        .fetch_one(&mut *tx)
-        .await
-        {
+        match ProviderProfile::find_by_business_name(&pool, &business_name).await {
             Ok(_) => {
                 log::error!("Profile found, business name not unique: {}", business_name);
-                Err(sqlx::Error::InvalidArgument(
+                return Err(sqlx::Error::InvalidArgument(
                     "Business name must be unique".to_string(),
-                ))
+                ));
             }
             Err(_) => {
                 // Continue
-                Ok(())
             }
         };
         //Check phone number uniqueness
-        match sqlx::query_as::<_, ProviderProfile>(
-            "SELECT * FROM provider_profiles WHERE phone_number = $1",
-        )
-        .bind(&phone_number)
-        .fetch_one(&mut *tx)
-        .await
-        {
+        match ProviderProfile::find_by_phone_number(&pool, &phone_number).await {
             Ok(_) => {
                 log::error!(
                     "Profile found, business phone_number not unique: {}",
                     phone_number
                 );
-                Err(sqlx::Error::RowNotFound)
+                return Err(sqlx::Error::RowNotFound);
             }
             Err(_) => {
                 // Continue
-                Ok(())
             }
         };
         //Check email uniqueness
-        match sqlx::query_as::<_, ProviderProfile>(
-            "SELECT * FROM provider_profiles WHERE email = $1",
-        )
-        .bind(&email)
-        .fetch_one(&mut *tx)
-        .await
-        {
+        match ProviderProfile::find_by_email(&pool, &email).await {
             Ok(_) => {
                 log::error!("Profile found, business email not unique: {}", email);
-                Err(sqlx::Error::RowNotFound)
+                return Err(sqlx::Error::RowNotFound);
             }
             Err(_) => {
                 // Continue
-                Ok(())
             }
         };
         // Finally, return uncommitted profile with provided data

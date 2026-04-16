@@ -202,7 +202,11 @@ window.onload = function () {
 
     // Set default selected application to loans
     applicationInput.value = "loans";
-  } else if (window.location.pathname === "/") {
+  } else if (
+    window.location.pathname === "/" ||
+    window.location.pathname === "/provide-loan" ||
+    window.location.pathname === "/register-loan"
+  ) {
     // Select default subscription plan on pricing page
     let beginnerPlanButton = document.getElementById("beginner-plan-button");
     let beginnerPlanCard = document.getElementById("beginner-plan-card");

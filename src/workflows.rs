@@ -12,7 +12,6 @@
 use reqwest::StatusCode;
 
 use crate::{
-    files,
     forms::{self, ProviderProfileData, UserData, UserProfileData},
     mail::send_email,
     models::{self, ApplicationToken, User},
@@ -292,7 +291,7 @@ pub async fn update_password<'a>(
                                             }
                                         }
                                         Err(e) => {
-                                            log::error!("Database pool Error");
+                                            log::error!("Database pool Error, {}", e);
                                             err = Some("Unable to create user".to_string());
                                         }
                                     }
@@ -319,26 +318,28 @@ pub async fn update_password<'a>(
             err = Some("Invalid registration token".to_string());
         }
     };
-    let msg = err.unwrap();
-    if false {
-        Ok(SuccessPopupResponse {
-            message: "Your password has been updated successfully. Please log in.".to_string(),
-            tera: tera,
-            path: "src/templates/login.html",
-            context: std::collections::HashMap::new(),
-        })
-    } else {
-        Err(ErrorPopupResponse {
-            message: msg,
-            tera: tera,
-            path: "src/templates/change_password.html",
-            context: {
-                let mut c = std::collections::HashMap::new();
-                c.insert("token".to_string(), token.clone());
-                c
-            },
-        })
-    }
+    match err {
+        Some(_) => {
+            return Ok(SuccessPopupResponse {
+                message: "Your password has been updated successfully. Please log in.".to_string(),
+                tera: tera,
+                path: "src/templates/login.html",
+                context: std::collections::HashMap::new(),
+            });
+        }
+        None => {
+            return Err(ErrorPopupResponse {
+                message: err.unwrap().to_string(),
+                tera: tera,
+                path: "src/templates/change_password.html",
+                context: {
+                    let mut c = std::collections::HashMap::new();
+                    c.insert("token".to_string(), token.clone());
+                    c
+                },
+            });
+        }
+    };
 }
 /// Creates a new loan applicant user and sends them a verification email. Returns the created user or an error if there's a database issue.
 pub async fn create_application_user(
@@ -381,21 +382,19 @@ pub async fn register_user<'a>(
 
     // Check if user with phone number or national ID already exists
     match models::UserProfile::find_by_phone_number(&pool, &profile_data.phone_number).await {
-        Ok(existing_profile) => {
-            log::warn!(
-                "User with phone number {} already exists.\n Please log in instead.",
-                existing_profile.phone_number
-            );
-            err = Some(AppError {
+        Ok(_) => {
+            return Err(AppError {
                 status_code: StatusCode::BAD_REQUEST,
-                message: Some("A user with this profile already exists.".to_string()),
+                message: Some(
+                    "A user with this profile already exists. Please log in instead.".to_string(),
+                ),
             });
         }
         Err(sqlx::Error::RowNotFound) => {
             // No user with this phone number, continue
         }
         Err(e) => {
-            err = Some(AppError {
+            return Err(AppError {
                 status_code: StatusCode::INTERNAL_SERVER_ERROR,
                 message: Some(format!(
                     "Could not check for existing user at this time: {}",
@@ -421,21 +420,6 @@ pub async fn register_user<'a>(
                 Ok(profile) => {
                     log::info!("Created user profile for user ID: {}", profile.user_id);
                     // Continue
-                }
-                Err(sqlx::Error::Database(e)) => {
-                    if e.code() == Some("23505".into()) {
-                        err = Some(AppError {
-                            status_code: StatusCode::BAD_REQUEST,
-                            message: Some("A user with this profile already exists.".to_string()),
-                        });
-                    } else {
-                        err = Some(AppError {
-                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                            message: Some(
-                                "Could not create user profile at this time.".to_string(),
-                            ),
-                        });
-                    }
                 }
                 Err(e) => {
                     log::error!("Error creating user profile: {}", e);

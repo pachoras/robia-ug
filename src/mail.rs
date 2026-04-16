@@ -1,5 +1,5 @@
 use lettre::{
-    Message, SmtpTransport, Transport,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::header::ContentType,
     transport::smtp::authentication::{Credentials, Mechanism},
 };
@@ -37,14 +37,12 @@ pub async fn send_email(
     let smtp_host = std::env::var("SMTP_HOST").unwrap_or_else(|_| "smtp.example.com".to_string());
     let smtp_username = std::env::var("SMTP_USERNAME").unwrap_or_else(|_| "username".to_string());
     let smtp_password = std::env::var("SMTP_PASSWORD").unwrap_or_else(|_| "password".to_string());
-    let sender = SmtpTransport::relay(&smtp_host)?
-        // Add credentials for authentication
+    let sender = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_host)?
         .credentials(Credentials::new(smtp_username, smtp_password))
-        // Optionally configure expected authentication mechanism
         .authentication(vec![Mechanism::Plain])
         .build();
 
-    sender.send(&email)?;
+    sender.send(email).await?;
     Ok(())
 }
 

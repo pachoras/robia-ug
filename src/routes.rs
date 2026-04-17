@@ -73,7 +73,10 @@ pub async fn register_provider_application(
                 log::error!("Form validation error: {}", e);
                 return AppError {
                     status_code: StatusCode::BAD_REQUEST,
-                    message: Some(e.to_string()),
+                    message: Some(
+                        "Unable to save provider details at this time. Please try again later"
+                            .to_string(),
+                    ),
                 }
                 .into_response();
             }
@@ -135,65 +138,46 @@ pub async fn handle_login(
                     }
                     .into_response();
                 } else if app == consts::APPLICATION_VARIANT_PRO {
-                    // Check if user has pro access: TODO
-                    match models::ProviderProfile::find(&state.pool, user.id).await {
-                        Ok(profile) => {
-                            if profile.is_verified {
-                                // Create auth token and return it as http-only cookie for pro user
-                                match workflows::create_auth_token(
-                                    &state.pool,
-                                    user.id,
-                                    models::TokenTypeVariants::ProAuthentication,
-                                )
-                                .await
-                                {
-                                    Ok(token) => {
-                                        log::info!(
-                                            "User with email {} logged in successfully.",
-                                            data.email
-                                        );
-                                        // Redirect to selected application page
-                                        let pro_application_url = std::env::var(
-                                            "PRO_APPLICATION_URL",
-                                        )
+                    // Check if user has pro access
+                    match models::ProviderProfile::find_by_user_id(&state.pool, user.id).await {
+                        Ok(_) => {
+                            // Create auth token and return it as http-only cookie for pro user
+                            match workflows::create_auth_token(
+                                &state.pool,
+                                user.id,
+                                models::TokenTypeVariants::ProAuthentication,
+                            )
+                            .await
+                            {
+                                Ok(token) => {
+                                    log::info!(
+                                        "User with email {} logged in successfully.",
+                                        data.email
+                                    );
+                                    // Redirect to selected application page
+                                    let pro_application_url = std::env::var("PRO_APPLICATION_URL")
                                         .unwrap_or_else(|_| "http://localhost:4000".to_string());
-                                        let uri = format!(
-                                            "{}/login/{}",
-                                            pro_application_url, token.token
-                                        );
-                                        // Set http token cookie and redirect
-                                        return session::set_http_cookie(
-                                            axum::response::Redirect::to(&uri).into_response(),
-                                            "auth_token".to_string(),
-                                            token.token.clone(),
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!(
-                                            "Error creating auth token for user with email {}: {}",
-                                            data.email,
-                                            e
-                                        );
-                                        return AppError {
-                                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                                            message: Some(
-                                                "Could not log in at this time.".to_string(),
-                                            ),
-                                        }
-                                        .into_response();
-                                    }
+                                    let uri =
+                                        format!("{}/login/{}", pro_application_url, token.token);
+                                    // Set http token cookie and redirect
+                                    return session::set_http_cookie(
+                                        axum::response::Redirect::to(&uri).into_response(),
+                                        "auth_token".to_string(),
+                                        token.token.clone(),
+                                    );
                                 }
-                            } else {
-                                log::warn!(
-                                    "User with email {} does not have pro access.",
-                                    data.email
-                                );
-                                return ErrorPopupResponse {
-                                    message: "Your account does not have access to the Pro application. Please contact support for assistance.".to_string(),
-                                    tera: &mut state.tera,
-                                    path: "src/templates/login.html",
-                                    context: std::collections::HashMap::new(),
-                                }.into_response();
+                                Err(e) => {
+                                    log::error!(
+                                        "Error creating auth token for user with email {}: {}",
+                                        data.email,
+                                        e
+                                    );
+                                    return AppError {
+                                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                        message: Some("Could not log in at this time.".to_string()),
+                                    }
+                                    .into_response();
+                                }
                             }
                         }
                         Err(e) => {
@@ -212,78 +196,36 @@ pub async fn handle_login(
                         }
                     }
                 } else if app == consts::APPLICATION_VARIANT_LOANS {
-                    // Check if user has loan access
-                    match models::UserProfile::find(&state.pool, user.id).await {
-                        Ok(profile) => {
-                            if profile.is_verified {
-                                // Create auth token and return it as http-only cookie
-                                match workflows::create_auth_token(
-                                    &state.pool,
-                                    user.id,
-                                    models::TokenTypeVariants::LoansAuthentication,
-                                )
-                                .await
-                                {
-                                    Ok(token) => {
-                                        log::info!(
-                                            "User with email {} logged in successfully.",
-                                            data.email
-                                        );
-                                        // Redirect to selected application page
-                                        let loan_application_url = std::env::var(
-                                            "LOAN_APPLICATION_URL",
-                                        )
-                                        .unwrap_or_else(|_| "http://localhost:3000".to_string());
-                                        let uri = format!(
-                                            "{}/login/{}",
-                                            loan_application_url, token.token
-                                        );
-                                        // Set http token cookie and redirect
-                                        return session::set_http_cookie(
-                                            axum::response::Redirect::to(&uri).into_response(),
-                                            "auth_token".to_string(),
-                                            token.token.clone(),
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!(
-                                            "Error creating auth token for user with email {}: {}",
-                                            data.email,
-                                            e
-                                        );
-                                        return AppError {
-                                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                                            message: Some(
-                                                "Could not log in at this time.".to_string(),
-                                            ),
-                                        }
-                                        .into_response();
-                                    }
-                                }
-                            } else {
-                                log::warn!(
-                                    "User with email {} does not have loan access.",
-                                    data.email
-                                );
-                                return ErrorPopupResponse {
-                                    message: "Your account does not have access to the Loans application. Please contact support for assistance.".to_string(),
-                                    tera: &mut state.tera,
-                                    path: "src/templates/login.html",
-                                    context: std::collections::HashMap::new(),
-                                }.into_response();
-                            }
+                    // Create auth token and return it as http-only cookie
+                    match workflows::create_auth_token(
+                        &state.pool,
+                        user.id,
+                        models::TokenTypeVariants::LoansAuthentication,
+                    )
+                    .await
+                    {
+                        Ok(token) => {
+                            log::info!("User with email {} logged in successfully.", data.email);
+                            // Redirect to selected application page
+                            let loan_application_url = std::env::var("LOAN_APPLICATION_URL")
+                                .unwrap_or_else(|_| "http://localhost:3000".to_string());
+                            let uri = format!("{}/login/{}", loan_application_url, token.token);
+                            // Set http token cookie and redirect
+                            return session::set_http_cookie(
+                                axum::response::Redirect::to(&uri).into_response(),
+                                "auth_token".to_string(),
+                                token.token.clone(),
+                            );
                         }
                         Err(e) => {
                             log::error!(
-                                "Error fetching user profile for user ID {}: {}",
-                                user.id,
+                                "Error creating auth token for user with email {}: {}",
+                                data.email,
                                 e
                             );
-                            return ErrorPopupResponse {
-                                message: "Invalid email or password.".to_string(),
-                                tera: &mut state.tera,
-                                path: "src/templates/login.html",
-                                context: std::collections::HashMap::new(),
+                            return AppError {
+                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message: Some("Could not log in at this time.".to_string()),
                             }
                             .into_response();
                         }
@@ -437,6 +379,9 @@ pub async fn update_password(
 /* Tests */
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     use super::*;
     use crate::files;
     use crate::renderer::init_renderer;
@@ -444,6 +389,7 @@ mod tests {
     use axum::body::to_bytes;
     use axum::extract::State;
     use axum::response::IntoResponse;
+    use tokio::sync::RwLock;
 
     async fn make_state() -> AppState {
         AppState {
@@ -452,6 +398,7 @@ mod tests {
                 .await
                 .unwrap_or_else(|_| panic!("Failed to connect to the database")),
             s3_client: files::initialize_s3_client().await,
+            rate_limit_bucket: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

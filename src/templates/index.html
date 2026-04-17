@@ -1,560 +1,585 @@
 {% extends 'base.html' %} {% block content %}
 <div>
-  <h1>Robia Loans</h1>
-  <h2>Where <u>approved</u> loan seekers meet <u>verified</u> providers</h2>
-  <div class="introduction">
-    <h5>Need a loan?</h5>
-    <a href="#quick-loan" class="hide-decoration">
-      <h5 class="highlight">
-        Sign up
+    <h1>Robia Loans</h1>
+    <h2>Where <u>approved</u> loan seekers meet <u>verified</u> providers</h2>
+    <div class="introduction">
+        <h5>Need a loan?</h5>
+        <a href="#quick-loan" class="hide-decoration">
+            <h5 class="highlight">
+                Sign up
 
-        <u>here</u
-        ><svg
-          xmlns="http://www.w3.org/2000/svg"
-          height="18px"
-          viewBox="0 -960 960 960"
-          width="18px"
-          fill="#e3e3e3"
-        >
-          <path
-            d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"
-          />
-        </svg></h5
-    ></a>
-  </div>
-  <div class="introduction">
-    <a href="#provide-loan" class="hide-decoration">
-      <h5 class="highlight-red">
-        Looking for <u>customers?</u
-        ><svg
-          xmlns="http://www.w3.org/2000/svg"
-          height="18px"
-          viewBox="0 -960 960 960"
-          width="18px"
-          fill="#e3e3e3"
-        >
-          <path
-            d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"
-          />
-        </svg>
-      </h5>
-    </a>
-    <h5>
-      Become a
-      <a href="#" class="hide-decoration"> provider </a>
-    </h5>
-  </div>
-  <form action="/register-loan" method="post" enctype="multipart/form-data">
-    <div class="section" id="quick-loan">
-      <h2>Quick loan form</h2>
-      <p>
-        Get a loan quickly from one of our many
-        <a href="#" class="hide-decoration highlight-red-small"
-          >verified providers</a
-        >. Fill out the form below to get started.<br />Once you're approved,
-        you'll receive bids for this loan. Compare them to decide which is the
-        most favourable, select one and that’s all!
-      </p>
+                <u>here</u
+                ><svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    height="18px"
+                    viewBox="0 -960 960 960"
+                    width="18px"
+                    fill="#e3e3e3"
+                >
+                    <path
+                        d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"
+                    />
+                </svg></h5
+        ></a>
     </div>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Loan Amount</p>
-        <input
-          id="loan_amount"
-          name="loan_amount"
-          required
-          type="number"
-          class="input-base-item"
-          placeholder="200,000"
-          autocomplete="off"
-          min="100000"
-          max="10000000"
-        />
-        {% if loan_amount_error %}
-        <p class="error-message">{{ loan_amount_error }}</p>
-        {% endif %}
-      </div>
-      <div class="input-base-container">
-        <p>Loan Duration</p>
-        <input
-          id="loan_duration"
-          name="loan_duration"
-          required
-          type="number"
-          class="input-base-item"
-          placeholder="2 months"
-          autocomplete="off"
-          min="1"
-          max="60"
-        />
-        {% if loan_duration_error %}
-        <p class="error-message">{{ loan_duration_error }}</p>
-        {% endif %}
-      </div>
+    <div class="introduction">
+        <a href="#provide-loan" class="hide-decoration">
+            <h5 class="highlight-red">
+                Looking for <u>customers?</u
+                ><svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    height="18px"
+                    viewBox="0 -960 960 960"
+                    width="18px"
+                    fill="#e3e3e3"
+                >
+                    <path
+                        d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"
+                    />
+                </svg>
+            </h5>
+        </a>
+        <h5>
+            Become a
+            <a href="#" class="hide-decoration"> provider </a>
+        </h5>
     </div>
-    <div class="input-base-section">
-      <div class="input-base-container">
-        <p>Desired Interest</p>
-        <input
-          id="desired_interest"
-          name="desired_interest"
-          required
-          type="number"
-          class="input-base-item"
-          placeholder="20%"
-          autocomplete="off"
-          min="5"
-          max="100"
-        />
-        {% if desired_interest_error %}
-        <p class="error-message">{{ desired_interest_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <h4>Personal Details</h4>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Full Name</p>
-        <input
-          id="full_name"
-          name="full_name"
-          required
-          type="text"
-          class="input-base-item"
-          placeholder="Enter your full name"
-          autocomplete="name"
-        />
-        {% if full_name_error %}
-        <p class="error-message">{{ full_name_error }}</p>
-        {% endif %}
-      </div>
-      <div class="input-base-container">
-        <p>Email Address</p>
-        <input
-          id="email"
-          name="email"
-          required
-          type="email"
-          class="input-base-item"
-          placeholder="jane.doe@example.com"
-          autocomplete="email"
-        />
-        {% if email_error %}
-        <p class="error-message">{{ email_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div class="input-base-section">
-      <div class="input-base-container">
-        <p>Phone Number</p>
-        <input
-          id="phone_number"
-          name="phone_number"
-          required
-          type="tel"
-          class="input-base-item"
-          placeholder="2567xxxxxxx"
-          autocomplete="tel"
-        />
-        {% if phone_number_error %}
-        <p class="error-message">{{ phone_number_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div class="input-base-section">
-      <div class="input-base-container">
-        <p>Proof of Address</p>
-        <input
-          id="proof_of_address"
-          name="proof_of_address"
-          required
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          class="input-base-item"
-        />
-      </div>
-    </div>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>National ID Front</p>
-        <input
-          id="national_id_front"
-          name="national_id_front"
-          required
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          class="input-base-item"
-        />
-        {% if national_id_front_error %}
-        <p class="error-message">{{ national_id_front_error }}</p>
-        {% endif %}
-      </div>
-      <div class="input-base-container">
-        <p>National ID Back</p>
-        <input
-          id="national_id_back"
-          name="national_id_back"
-          required
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          class="input-base-item"
-        />
-        {% if national_id_back_error %}
-        <p class="error-message">{{ national_id_back_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <h4>Additional Files (e.g CV, Bank Statement)</h4>
-    <div>
-      <button class="upload-button" id="upload-additional-file" type="button">
-        Upload additional file
-      </button>
-      <div id="additional-file-container"></div>
-    </div>
-    <button type="submit" class="submit-button">Submit Loan Request</button>
-  </form>
-  <form
-    action="/register-provider"
-    method="post"
-    enctype="multipart/form-data"
-    class="section"
-    id="provide-loan"
-  >
-    <h2>Provide a loan</h2>
-    <p>
-      Becoming a provider is as easy as filling in the details below, and
-      waiting normally 1 business day for verification.<br />
-      Once done, you'll have access to our catalogue of
-      <a href="#" class="hide-decoration highlight-blue-small"
-        >professionally vetted</a
-      >
-      loan bids.
-    </p>
-    <div class="payment-card-section">
-      <div class="payment-card payment-card-selected" id="beginner-plan-card">
-        <h6 class="h7 bottom-padding no-margin"><strong>Beginner</strong></h6>
-        <h2 class="no-margin">100,000</h2>
-        <div class="sub-section">
-          <h2 class="no-top-margin">UGX</h2>
-          <p>per month</p>
+    <form action="/register-loan" method="post" enctype="multipart/form-data">
+        <div class="section" id="quick-loan">
+            <h2>Quick loan form</h2>
+            <p>
+                Get a loan quickly from one of our many
+                <a href="#" class="hide-decoration highlight-red-small"
+                    >verified providers</a
+                >. Fill out the form below to get started.<br />Once you're
+                approved, you'll receive bids for this loan. Compare them to
+                decide which is the most favourable, select one and that’s all!
+            </p>
         </div>
-        <p class="highlight-blue"><strong>*First month free</strong></p>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Loan Amount</p>
+                <input
+                    id="loan_amount"
+                    name="loan_amount"
+                    required
+                    type="number"
+                    class="input-base-item"
+                    placeholder="200,000"
+                    autocomplete="off"
+                    min="100000"
+                    max="10000000"
+                />
+                {% if loan_amount_error %}
+                <p class="error-message">{{ loan_amount_error }}</p>
+                {% endif %}
+            </div>
+            <div class="input-base-container">
+                <p>Loan Duration</p>
+                <input
+                    id="loan_duration"
+                    name="loan_duration"
+                    required
+                    type="number"
+                    class="input-base-item"
+                    placeholder="2 months"
+                    autocomplete="off"
+                    min="1"
+                    max="60"
+                />
+                {% if loan_duration_error %}
+                <p class="error-message">{{ loan_duration_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container">
+                <p>Desired Interest</p>
+                <input
+                    id="desired_interest"
+                    name="desired_interest"
+                    required
+                    type="number"
+                    class="input-base-item"
+                    placeholder="20%"
+                    autocomplete="off"
+                    min="5"
+                    max="100"
+                />
+                {% if desired_interest_error %}
+                <p class="error-message">{{ desired_interest_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <h4>Personal Details</h4>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Full Name</p>
+                <input
+                    id="full_name"
+                    name="full_name"
+                    required
+                    type="text"
+                    class="input-base-item"
+                    placeholder="Enter your full name"
+                    autocomplete="name"
+                />
+                {% if full_name_error %}
+                <p class="error-message">{{ full_name_error }}</p>
+                {% endif %}
+            </div>
+            <div class="input-base-container">
+                <p>Email Address</p>
+                <input
+                    id="email"
+                    name="email"
+                    required
+                    type="email"
+                    class="input-base-item"
+                    placeholder="jane.doe@example.com"
+                    autocomplete="email"
+                />
+                {% if email_error %}
+                <p class="error-message">{{ email_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container">
+                <p>Phone Number</p>
+                <input
+                    id="phone_number"
+                    name="phone_number"
+                    required
+                    type="tel"
+                    class="input-base-item"
+                    placeholder="2567xxxxxxx"
+                    autocomplete="tel"
+                />
+                {% if phone_number_error %}
+                <p class="error-message">{{ phone_number_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container">
+                <p>Proof of Address</p>
+                <input
+                    id="proof_of_address"
+                    name="proof_of_address"
+                    required
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    class="input-base-item"
+                />
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>National ID Front</p>
+                <input
+                    id="national_id_front"
+                    name="national_id_front"
+                    required
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    class="input-base-item"
+                />
+                {% if national_id_front_error %}
+                <p class="error-message">{{ national_id_front_error }}</p>
+                {% endif %}
+            </div>
+            <div class="input-base-container">
+                <p>National ID Back</p>
+                <input
+                    id="national_id_back"
+                    name="national_id_back"
+                    required
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    class="input-base-item"
+                />
+                {% if national_id_back_error %}
+                <p class="error-message">{{ national_id_back_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <h4>Additional Files (e.g CV, Bank Statement)</h4>
+        <div>
+            <button
+                class="upload-button"
+                id="upload-additional-file"
+                type="button"
+            >
+                Upload additional file
+            </button>
+            <div id="additional-file-container"></div>
+        </div>
+        <button type="submit" class="submit-button">Submit Loan Request</button>
+    </form>
+    <form
+        action="/register-provider"
+        method="post"
+        enctype="multipart/form-data"
+        class="section"
+        id="provide-loan"
+    >
+        <h2>Provide a loan</h2>
+        <p>
+            Becoming a provider is as easy as filling in the details below, and
+            waiting normally 1 business day for verification.<br />
+            Once done, you'll have access to our catalogue of
+            <a href="#" class="hide-decoration highlight-blue-small"
+                >professionally vetted</a
+            >
+            loan bids.
+        </p>
+        <div class="payment-card-section">
+            <div
+                class="payment-card payment-card-selected"
+                id="beginner-plan-card"
+            >
+                <h6 class="h7 bottom-padding no-margin">
+                    <strong>Beginner</strong>
+                </h6>
+                <h2 class="no-margin">100,000</h2>
+                <div class="sub-section">
+                    <h2 class="no-top-margin">UGX</h2>
+                    <p>per month</p>
+                </div>
+                <p class="highlight-blue"><strong>*First month free</strong></p>
+                <ul>
+                    <li>1 user</li>
+                    <li>20 bids</li>
+                    <li>1,000,000 loan amount limit</li>
+                </ul>
+                <button
+                    type="button"
+                    class="submit-button-wide"
+                    id="beginner-plan-button"
+                >
+                    Select beginner
+                </button>
+            </div>
+            <div
+                class="payment-card accented-background-light"
+                id="pro-plan-card"
+            >
+                <div class="sub-section">
+                    <h6 class="h7 bottom-padding no-margin">
+                        <strong>Pro</strong>
+                    </h6>
+                    <div>
+                        <p class="purple-tag">Most popular</p>
+                    </div>
+                </div>
+                <h2 class="no-margin">250,000</h2>
+                <div class="sub-section">
+                    <h2 class="no-top-margin">UGX</h2>
+                    <p>per month</p>
+                </div>
+                <p class="highlight-blue"><strong>*First month free</strong></p>
+                <ul>
+                    <li>3 users</li>
+                    <li>100 bids</li>
+                    <li>5,000,000 loan amount limit</li>
+                </ul>
+                <button
+                    type="button"
+                    class="submit-button-wide"
+                    id="pro-plan-button"
+                >
+                    Select Pro
+                </button>
+            </div>
+            <div class="payment-card" id="ultimate-plan-card">
+                <h6 class="h7 bottom-padding no-margin">
+                    <strong>Ultimate</strong>
+                </h6>
+                <h2 class="no-margin">500,000</h2>
+                <div class="sub-section">
+                    <h2 class="no-top-margin">UGX</h2>
+                    <p>per month</p>
+                </div>
+                <p class="highlight-blue"><strong>*First month free</strong></p>
+                <ul>
+                    <li>Unlimited users</li>
+                    <li>Unlimited bids</li>
+                    <li>No loan amount limit</li>
+                </ul>
+                <button
+                    type="button"
+                    class="submit-button-wide"
+                    id="ultimate-plan-button"
+                >
+                    Select Ultimate
+                </button>
+            </div>
+            <input type="hidden" name="plan" id="plan" value="beginner" />
+        </div>
+        <p>*You will only be charged after the 1 month evaluation period</p>
+        <h4>Business Details</h4>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Business Name</p>
+                <input
+                    id="business_name"
+                    name="business_name"
+                    required
+                    type="text"
+                    class="input-base-item"
+                    placeholder="Enter your business name"
+                    autocomplete="organization"
+                />
+                {% if business_name_error %}
+                <p class="error-message">{{ business_name_error }}</p>
+                {% endif %}
+            </div>
+            <div class="input-base-container">
+                <p>Business Email</p>
+                <input
+                    id="business_email"
+                    name="business_email"
+                    required
+                    type="email"
+                    class="input-base-item"
+                    placeholder="john@business.com"
+                    autocomplete="email"
+                />
+                {% if business_email_error %}
+                <p class="error-message">{{ business_email_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Phone Number</p>
+                <input
+                    id="business_phone_number"
+                    name="business_phone_number"
+                    required
+                    type="tel"
+                    class="input-base-item"
+                    placeholder="2567xxxxxxx"
+                />
+                {% if business_phone_number_error %}
+                <p class="error-message">{{ business_phone_number_error }}</p>
+                {% endif %}
+            </div>
+            <div class="input-base-container">
+                <p>Number of Employees</p>
+                <select
+                    name="number_of_employees"
+                    id="number_of_employees"
+                    class="input-base-item"
+                    required
+                >
+                    <option value="">--Please choose an option--</option>
+                    <option selected value="10">1-10</option>
+                    <option value="50">11-50</option>
+                    <option value="200">51-200</option>
+                    <option value="500">201-500</option>
+                    <option value="1000">501-1000</option>
+                </select>
+                {% if number_of_employees_error %}
+                <p class="error-message">{{ number_of_employees_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Certificate of Incorporation</p>
+                <input
+                    id="certificate_of_incorporation"
+                    name="certificate_of_incorporation"
+                    type="file"
+                    class="input-base-item"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                />
+                {% if certificate_of_incorporation_error %}
+                <p class="error-message">
+                    {{ certificate_of_incorporation_error }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Loan License</p>
+                <input
+                    id="loan_license"
+                    name="loan_license"
+                    type="file"
+                    class="input-base-item"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                />
+                {% if loan_license_error %}
+                <p class="error-message">{{ loan_license_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Proof of Address</p>
+                <input
+                    id="business_proof_of_address"
+                    name="business_proof_of_address"
+                    type="file"
+                    class="input-base-item"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                />
+                {% if business_proof_of_address_error %}
+                <p class="error-message">
+                    {{ business_proof_of_address_error }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        <h4>Employee Details</h4>
+        <div class="input-base-section">
+            <div class="input-base-container right-margin">
+                <p>Employee Name</p>
+                <input
+                    id="employee_name"
+                    name="employee_name"
+                    required
+                    type="text"
+                    class="input-base-item"
+                    placeholder="Enter your employee's name"
+                    autocomplete="organization"
+                />
+                {% if employee_name_error %}
+                <p class="error-message">{{ employee_name_error }}</p>
+                {% endif %}
+            </div>
+            <div class="input-base-container">
+                <p>Employee NIN</p>
+                <input
+                    id="employee_nin"
+                    name="employee_nin"
+                    required
+                    type="text"
+                    class="input-base-item"
+                    placeholder="CM1234567890CNNK"
+                    autocomplete="off"
+                />
+                {% if employee_nin_error %}
+                <p class="error-message">{{ employee_nin_error }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <button type="submit" class="submit-button">
+                Submit Provider Request
+            </button>
+        </div>
+    </form>
+    <div class="section">
+        <h2>How it works</h2>
+        <p>
+            Robia Loans is a platform that connects approved loan seekers with
+            verified providers. We make the process of getting a loan simple,
+            transparent and efficient for everyone involved.
+        </p>
+        <p>
+            For loan seekers, we provide a quick and easy way to get a loan from
+            multiple providers. You can compare bids and choose the one that
+            best suits your needs. For providers, we offer access to a large
+            pool of approved loan seekers, allowing you to grow your business
+            and reach more customers.
+        </p>
+    </div>
+    <div class="section">
+        <h2>Why choose Robia Loans?</h2>
         <ul>
-          <li>1 user</li>
-          <li>20 bids</li>
-          <li>1,000,000 loan amount limit</li>
+            <li>
+                <strong>Verified Providers:</strong> We thoroughly vet all our
+                providers to ensure they are trustworthy and reliable.
+            </li>
+            <li>
+                <strong>Competitive Bids:</strong> Get multiple bids for your
+                loan and choose the one that offers the best terms.
+            </li>
+            <li>
+                <strong>Transparent Process:</strong> We provide clear
+                information about loan terms, fees and provider details, so you
+                can make informed decisions.
+            </li>
+            <li>
+                <strong>Customer Support:</strong> Our dedicated support team is
+                here to assist you every step of the way, ensuring a smooth
+                experience.
+            </li>
         </ul>
-        <button
-          type="button"
-          class="submit-button-wide"
-          id="beginner-plan-button"
-        >
-          Select beginner
-        </button>
-      </div>
-      <div class="payment-card accented-background-light" id="pro-plan-card">
-        <div class="sub-section">
-          <h6 class="h7 bottom-padding no-margin"><strong>Pro</strong></h6>
-          <div>
-            <p class="purple-tag">Most popular</p>
-          </div>
+    </div>
+    <div class="section">
+        <h2>Security</h2>
+        <h3>Why do we need this information?</h3>
+        <p>
+            We require this information to ensure the security and integrity of
+            our platform. By verifying the details provided, we can protect both
+            loan seekers and providers from fraudulent activities and maintain a
+            safe environment for all users.
+        </p>
+        <p>
+            We only use this data for the verification process. Once you pass
+            these checks we will, at your request, delete your files and future
+            verification checks will require re-uploads of these files, if
+            needed.
+        </p>
+        <h3>How long do we keep your information?</h3>
+        <p>
+            We use state of the art cryptographic tools to not only keep your
+            data secure, but to make sure no one can identify you from it.
+        </p>
+    </div>
+    <div class="section">
+        <h2>Terms and Conditions</h2>
+        <div>
+            <p>
+                By using our platform, you agree to our terms and conditions.
+                Please read them carefully before signing up. We reserve the
+                right to modify these terms at any time. Any changes will be
+                effective immediately upon posting on our website.
+            </p>
+            <p>
+                Users are responsible for maintaining the confidentiality of
+                their account information and for all activities that occur
+                under their account. We are not liable for any damages arising
+                out of or in connection with the use of our platform.
+            </p>
+            <p>
+                <a href="/terms" class="hide-decoration highlight-blue-small"
+                    >Terms and Conditions</a
+                >
+            </p>
+            <p>
+                <a href="/cookies" class="hide-decoration highlight-blue-small"
+                    >Cookie Policy</a
+                >
+            </p>
+            <p>
+                <a href="/privacy" class="hide-decoration highlight-blue-small"
+                    >Privacy Policy</a
+                >
+            </p>
         </div>
-        <h2 class="no-margin">250,000</h2>
-        <div class="sub-section">
-          <h2 class="no-top-margin">UGX</h2>
-          <p>per month</p>
-        </div>
-        <p class="highlight-blue"><strong>*First month free</strong></p>
-        <ul>
-          <li>3 users</li>
-          <li>100 bids</li>
-          <li>5,000,000 loan amount limit</li>
-        </ul>
-        <button type="button" class="submit-button-wide" id="pro-plan-button">
-          Select Pro
-        </button>
-      </div>
-      <div class="payment-card" id="ultimate-plan-card">
-        <h6 class="h7 bottom-padding no-margin"><strong>Ultimate</strong></h6>
-        <h2 class="no-margin">500,000</h2>
-        <div class="sub-section">
-          <h2 class="no-top-margin">UGX</h2>
-          <p>per month</p>
-        </div>
-        <p class="highlight-blue"><strong>*First month free</strong></p>
-        <ul>
-          <li>Unlimited users</li>
-          <li>Unlimited bids</li>
-          <li>No loan amount limit</li>
-        </ul>
-        <button
-          type="button"
-          class="submit-button-wide"
-          id="ultimate-plan-button"
-        >
-          Select Ultimate
-        </button>
-      </div>
-      <input type="hidden" name="plan" id="plan" value="beginner" />
     </div>
-    <p>*You will only be charged after the 1 month evaluation period</p>
-    <h4>Business Details</h4>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Business Name</p>
-        <input
-          id="business_name"
-          name="business_name"
-          required
-          type="text"
-          class="input-base-item"
-          placeholder="Enter your business name"
-          autocomplete="organization"
-        />
-        {% if business_name_error %}
-        <p class="error-message">{{ business_name_error }}</p>
-        {% endif %}
-      </div>
-      <div class="input-base-container">
-        <p>Business Email</p>
-        <input
-          id="business_email"
-          name="business_email"
-          required
-          type="email"
-          class="input-base-item"
-          placeholder="john@business.com"
-          autocomplete="email"
-        />
-        {% if business_email_error %}
-        <p class="error-message">{{ business_email_error }}</p>
-        {% endif %}
-      </div>
+    <div class="section">
+        <h2>Contact Us</h2>
+        <p>
+            If you have any questions, concerns or feedback, please don't
+            hesitate to contact us. Our support team is here to help you with
+            any issues you may encounter while using our platform.
+        </p>
+        <p>
+            Email:
+            <a
+                href="mailto:support@robia.com"
+                class="hide-decoration highlight-blue-small"
+                >support@robia.com</a
+            >
+        </p>
     </div>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Phone Number</p>
-        <input
-          id="business_phone_number"
-          name="business_phone_number"
-          required
-          type="tel"
-          class="input-base-item"
-          placeholder="2567xxxxxxx"
-        />
-        {% if business_phone_number_error %}
-        <p class="error-message">{{ business_phone_number_error }}</p>
-        {% endif %}
-      </div>
-      <div class="input-base-container">
-        <p>Number of Employees</p>
-        <select
-          name="number_of_employees"
-          id="number_of_employees"
-          class="input-base-item"
-          required
-        >
-          <option value="">--Please choose an option--</option>
-          <option value="1-10">1-10</option>
-          <option value="11-50">11-50</option>
-          <option value="51-200">51-200</option>
-          <option value="201-500">201-500</option>
-          <option value="501-1000">501-1000</option>
-          <option value="1000+">1000+</option>
-        </select>
-        {% if number_of_employees_error %}
-        <p class="error-message">{{ number_of_employees_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Certificate of Incorporation</p>
-        <input
-          id="certificate_of_incorporation"
-          name="certificate_of_incorporation"
-          type="file"
-          class="input-base-item"
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-        {% if certificate_of_incorporation_error %}
-        <p class="error-message">{{ certificate_of_incorporation_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Loan License</p>
-        <input
-          id="loan_license"
-          name="loan_license"
-          type="file"
-          class="input-base-item"
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-        {% if loan_license_error %}
-        <p class="error-message">{{ loan_license_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Proof of Address</p>
-        <input
-          id="business_proof_of_address"
-          name="business_proof_of_address"
-          type="file"
-          class="input-base-item"
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-        {% if business_proof_of_address_error %}
-        <p class="error-message">{{ business_proof_of_address_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <h4>Employee Details</h4>
-    <div class="input-base-section">
-      <div class="input-base-container right-margin">
-        <p>Employee Name</p>
-        <input
-          id="employee_name"
-          name="employee_name"
-          required
-          type="text"
-          class="input-base-item"
-          placeholder="Enter your employee's name"
-          autocomplete="organization"
-        />
-        {% if employee_name_error %}
-        <p class="error-message">{{ employee_name_error }}</p>
-        {% endif %}
-      </div>
-      <div class="input-base-container">
-        <p>Employee NIN</p>
-        <input
-          id="employee_nin"
-          name="employee_nin"
-          required
-          type="text"
-          class="input-base-item"
-          placeholder="CM1234567890CNNK"
-          autocomplete="off"
-        />
-        {% if employee_nin_error %}
-        <p class="error-message">{{ employee_nin_error }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div>
-      <button type="submit" class="submit-button">
-        Submit Provider Request
-      </button>
-    </div>
-  </form>
-  <div class="section">
-    <h2>How it works</h2>
-    <p>
-      Robia Loans is a platform that connects approved loan seekers with
-      verified providers. We make the process of getting a loan simple,
-      transparent and efficient for everyone involved.
-    </p>
-    <p>
-      For loan seekers, we provide a quick and easy way to get a loan from
-      multiple providers. You can compare bids and choose the one that best
-      suits your needs. For providers, we offer access to a large pool of
-      approved loan seekers, allowing you to grow your business and reach more
-      customers.
-    </p>
-  </div>
-  <div class="section">
-    <h2>Why choose Robia Loans?</h2>
-    <ul>
-      <li>
-        <strong>Verified Providers:</strong> We thoroughly vet all our providers
-        to ensure they are trustworthy and reliable.
-      </li>
-      <li>
-        <strong>Competitive Bids:</strong> Get multiple bids for your loan and
-        choose the one that offers the best terms.
-      </li>
-      <li>
-        <strong>Transparent Process:</strong> We provide clear information about
-        loan terms, fees and provider details, so you can make informed
-        decisions.
-      </li>
-      <li>
-        <strong>Customer Support:</strong> Our dedicated support team is here to
-        assist you every step of the way, ensuring a smooth experience.
-      </li>
-    </ul>
-  </div>
-  <div class="section">
-    <h2>Security</h2>
-    <h3>Why do we need this information?</h3>
-    <p>
-      We require this information to ensure the security and integrity of our
-      platform. By verifying the details provided, we can protect both loan
-      seekers and providers from fraudulent activities and maintain a safe
-      environment for all users.
-    </p>
-    <p>
-      We only use this data for the verification process. Once you pass these
-      checks we will, at your request, delete your files and future verification
-      checks will require re-uploads of these files, if needed.
-    </p>
-    <h3>How long do we keep your information?</h3>
-    <p>
-      We use state of the art cryptographic tools to not only keep your data
-      secure, but to make sure no one can identify you from it.
-    </p>
-  </div>
-  <div class="section">
-    <h2>Terms and Conditions</h2>
-    <div>
-      <p>
-        By using our platform, you agree to our terms and conditions. Please
-        read them carefully before signing up. We reserve the right to modify
-        these terms at any time. Any changes will be effective immediately upon
-        posting on our website.
-      </p>
-      <p>
-        Users are responsible for maintaining the confidentiality of their
-        account information and for all activities that occur under their
-        account. We are not liable for any damages arising out of or in
-        connection with the use of our platform.
-      </p>
-      <p>
-        <a href="/terms" class="hide-decoration highlight-blue-small"
-          >Terms and Conditions</a
-        >
-      </p>
-      <p>
-        <a href="/cookies" class="hide-decoration highlight-blue-small"
-          >Cookie Policy</a
-        >
-      </p>
-      <p>
-        <a href="/privacy" class="hide-decoration highlight-blue-small"
-          >Privacy Policy</a
-        >
-      </p>
-    </div>
-  </div>
-  <div class="section">
-    <h2>Contact Us</h2>
-    <p>
-      If you have any questions, concerns or feedback, please don't hesitate to
-      contact us. Our support team is here to help you with any issues you may
-      encounter while using our platform.
-    </p>
-    <p>
-      Email:
-      <a
-        href="mailto:support@robia.com"
-        class="hide-decoration highlight-blue-small"
-        >support@robia.com</a
-      >
-    </p>
-  </div>
-  {% endblock %}
+    {% endblock %}
 </div>

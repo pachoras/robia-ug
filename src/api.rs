@@ -8,6 +8,9 @@ use crate::{
     workflows,
 };
 
+#[derive(Debug)]
+pub struct ApiError(String);
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GoogleLoginValues {
     pub token: String,
@@ -74,59 +77,43 @@ pub async fn login_google(
         Ok(claims) => {
             // Check if user exists in database
             match models::User::find_by_email(&state.pool, &claims.email).await {
-                Ok(user) => {
+                Ok(mut user) => {
                     // Update the user's Google ID if it's not already set
-                    match models::UserProfile::find_by_email(&state.pool, &claims.email).await {
-                        Ok(mut user_profile) => {
-                            if user_profile.google_id.is_none() {
-                                user_profile.google_id = Some(claims.sub);
-                                let mut tx = state
-                                    .pool
-                                    .begin()
-                                    .await
-                                    .map_err(|_| AppError {
-                                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                                        message: None,
-                                    })
-                                    .unwrap();
-                                if let Err(e) =
-                                    models::UserProfile::update(&mut tx, &user_profile).await
-                                {
-                                    mail::send_admin_error_email(&e.to_string())
-                                        .map_err(|_| AppError {
-                                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                                            message: None,
-                                        })
-                                        .unwrap();
-                                    tx.rollback()
-                                        .await
-                                        .map_err(|_| AppError {
-                                            status_code: StatusCode::BAD_REQUEST,
-                                            message: None,
-                                        })
-                                        .unwrap();
-                                    return ApiResponse {
-                                        status: ApiResponseStatus::ERROR,
-                                        data: None,
-                                        token: None,
-                                        error: Some(
-                                            "Database error occurred. Please try again later."
-                                                .to_string(),
-                                        ),
-                                    };
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            log::error!("Error updating user google ID {}: {}", &claims.email, e);
+                    if user.google_id.is_none() {
+                        user.google_id = Some(claims.sub);
+                        let mut tx = state
+                            .pool
+                            .begin()
+                            .await
+                            .map_err(|_| AppError {
+                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message: None,
+                            })
+                            .unwrap();
+                        if let Err(e) = models::User::update(&mut tx, user.id, &user).await {
+                            mail::send_admin_error_email(&e.to_string())
+                                .map_err(|_| AppError {
+                                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                    message: None,
+                                })
+                                .unwrap();
+                            tx.rollback()
+                                .await
+                                .map_err(|_| AppError {
+                                    status_code: StatusCode::BAD_REQUEST,
+                                    message: None,
+                                })
+                                .unwrap();
                             return ApiResponse {
                                 status: ApiResponseStatus::ERROR,
                                 data: None,
                                 token: None,
-                                error: Some("Could not log in at this time.".to_string()),
+                                error: Some(
+                                    "Database error occurred. Please try again later.".to_string(),
+                                ),
                             };
                         }
-                    }
+                    };
                     if payload.application != consts::APPLICATION_VARIANT_LOANS
                         && payload.application != consts::APPLICATION_VARIANT_PRO
                     {

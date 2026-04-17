@@ -265,11 +265,11 @@ pub struct ProviderProfileData {
     pub employee_national_id: String,
     pub phone_number: String,
     pub employee_count: i32,
-    pub certificate_of_incorporation: String,
+    pub certificate_of_incorporation: Vec<u8>,
     pub certificate_of_incorporation_file_format: String,
-    pub loan_license: String,
+    pub loan_license: Vec<u8>,
     pub loan_license_file_format: String,
-    pub business_proof_of_address: String,
+    pub business_proof_of_address: Vec<u8>,
     pub business_proof_of_address_file_format: String,
 }
 
@@ -282,11 +282,11 @@ impl ProviderProfileData {
             employee_national_id: String::new(),
             phone_number: String::new(),
             employee_count: 0,
-            certificate_of_incorporation: String::new(),
+            certificate_of_incorporation: Vec::new(),
             certificate_of_incorporation_file_format: String::new(),
-            loan_license: String::new(),
+            loan_license: Vec::new(),
             loan_license_file_format: String::new(),
-            business_proof_of_address: String::new(),
+            business_proof_of_address: Vec::new(),
             business_proof_of_address_file_format: String::new(),
         }
     }
@@ -299,20 +299,26 @@ pub async fn get_provider_registration_form_data(
     let mut profile_data = ProviderProfileData::new();
     let mut context = std::collections::HashMap::new();
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| FormError(e.to_string()))?
-    {
-        // Get form fields
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        FormError(format!(
+            "Multipart cannot get next field: {}",
+            e.to_string()
+        ))
+    })? {
         let name = field
             .name()
             .ok_or(FormError("Missing field name".to_string()))?
             .to_string();
         let file_name = field.file_name().map(|s| s.to_string());
-        let data = field.bytes().await.map_err(|e| FormError(e.to_string()))?;
+        let data = field.bytes().await.map_err(|e| {
+            FormError(format!(
+                "Cannot get data for field {}: {}",
+                name,
+                e.to_string()
+            ))
+        })?;
 
-        if name == "email" {
+        if name == "business_email" {
             if !verify_email(&String::from_utf8_lossy(&data)) {
                 context.insert(
                     "email_error".to_string(),
@@ -320,16 +326,16 @@ pub async fn get_provider_registration_form_data(
                 );
                 context.insert("errors".to_string(), "true".to_string());
             }
-            user_data.email =
-                String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+            user_data.email = String::from_utf8(data.to_vec())
+                .map_err(|e| FormError(format!("Email field invalid: {}", e.to_string())))?;
             if user_data.email.is_empty() {
                 context.insert("email_error".to_string(), "Email is required".to_string());
                 context.insert("errors".to_string(), "true".to_string());
             }
         }
         if name == "business_name" {
-            profile_data.business_name =
-                String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+            profile_data.business_name = String::from_utf8(data.to_vec())
+                .map_err(|e| FormError(format!("Business name invalid: {}", e.to_string())))?;
             if profile_data.business_name.is_empty() {
                 context.insert(
                     "business_name_error".to_string(),
@@ -339,8 +345,8 @@ pub async fn get_provider_registration_form_data(
             }
         }
         if name == "employee_name" {
-            profile_data.employee_name =
-                String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+            profile_data.employee_name = String::from_utf8(data.to_vec())
+                .map_err(|e| FormError(format!("Employee name invalid: {}", e.to_string())))?;
             if profile_data.employee_name.is_empty() {
                 context.insert(
                     "employee_name_error".to_string(),
@@ -350,8 +356,8 @@ pub async fn get_provider_registration_form_data(
             }
         }
         if name == "employee_national_id" {
-            profile_data.employee_national_id =
-                String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+            profile_data.employee_national_id = String::from_utf8(data.to_vec())
+                .map_err(|e| FormError(format!("National ID invalid: {}", e.to_string())))?;
             if profile_data.employee_national_id.is_empty() {
                 context.insert(
                     "employee_national_id_error".to_string(),
@@ -368,8 +374,8 @@ pub async fn get_provider_registration_form_data(
                 );
                 context.insert("errors".to_string(), "true".to_string());
             }
-            profile_data.phone_number =
-                String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+            profile_data.phone_number = String::from_utf8(data.to_vec())
+                .map_err(|e| FormError(format!("Phone number invalid: {}", e.to_string())))?;
             if profile_data.phone_number.is_empty() {
                 context.insert(
                     "phone_number_error".to_string(),
@@ -379,11 +385,14 @@ pub async fn get_provider_registration_form_data(
             }
         }
         if name == "employee_count" {
-            let count_str =
-                String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
-            profile_data.employee_count = count_str
-                .parse::<i32>()
-                .map_err(|e| FormError(e.to_string()))?;
+            let count_str = String::from_utf8(data.to_vec())
+                .map_err(|e| FormError(format!("Employee count invalid: {}", e.to_string())))?;
+            profile_data.employee_count = count_str.parse::<i32>().map_err(|e| {
+                FormError(format!(
+                    "Employee count not valid integer: {}",
+                    e.to_string()
+                ))
+            })?;
             if profile_data.employee_count <= 0 {
                 context.insert(
                     "employee_count_error".to_string(),
@@ -397,8 +406,7 @@ pub async fn get_provider_registration_form_data(
             match verify_file_extension(&file_name) {
                 Ok(file_extension) => {
                     profile_data.certificate_of_incorporation_file_format = file_extension;
-                    profile_data.certificate_of_incorporation =
-                        String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+                    profile_data.certificate_of_incorporation = data.to_vec();
                 }
                 Err(_) => {
                     context.insert(
@@ -414,8 +422,7 @@ pub async fn get_provider_registration_form_data(
             match verify_file_extension(&file_name) {
                 Ok(file_extension) => {
                     profile_data.loan_license_file_format = file_extension;
-                    profile_data.loan_license =
-                        String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+                    profile_data.loan_license = data.to_vec();
                 }
                 Err(_) => {
                     context.insert(
@@ -431,8 +438,7 @@ pub async fn get_provider_registration_form_data(
             match verify_file_extension(&file_name) {
                 Ok(file_extension) => {
                     profile_data.business_proof_of_address_file_format = file_extension;
-                    profile_data.business_proof_of_address =
-                        String::from_utf8(data.to_vec()).map_err(|e| FormError(e.to_string()))?;
+                    profile_data.business_proof_of_address = data.to_vec();
                 }
                 Err(_) => {
                     context.insert(

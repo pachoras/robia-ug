@@ -41,8 +41,12 @@ pub async fn send_email(
         .credentials(Credentials::new(smtp_username, smtp_password))
         .authentication(vec![Mechanism::Plain])
         .build();
-
-    sender.send(email).await?;
+    match sender.send(email).await {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Failed to send email: {}", e.to_string())
+        }
+    };
     Ok(())
 }
 

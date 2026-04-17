@@ -33,6 +33,7 @@ pub struct User {
     pub password_hash: String,
     pub salt: String,
     pub is_enabled: bool,
+    pub google_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -47,6 +48,7 @@ impl User {
             email,
             password_hash,
             salt,
+            google_id: Some("id".to_string()),
             is_enabled: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
@@ -120,7 +122,6 @@ pub struct UserProfile {
     pub phone_number: String,
     pub proof_of_address: String,
     pub is_verified: bool,
-    pub google_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -144,7 +145,6 @@ impl UserProfile {
             phone_number,
             proof_of_address,
             is_verified: false,
-            google_id: None,
             created_at: Utc::now(),
             updated_at: Utc::now(), // This will be set by the database
         }
@@ -336,6 +336,23 @@ impl ProviderProfile {
         profile: &ProviderProfileData,
         client: &aws_sdk_s3::Client,
     ) -> Result<ProviderProfile, sqlx::Error> {
+        let business_proof_of_address_path_file_name = files::get_business_proof_of_address_path(
+            &profile.user_id,
+            &profile.business_proof_of_address_file_format,
+        );
+        let business_loan_license_path_file_name = files::get_business_loan_license_path(
+            &profile.user_id,
+            &profile.loan_license_file_format,
+        );
+        let certificate_of_incorporation_file_name = files::get_certificate_of_incorporation_path(
+            &profile.user_id,
+            &profile.certificate_of_incorporation_file_format,
+        );
+
+        log::info!("{}", business_proof_of_address_path_file_name);
+        log::info!("{}", business_loan_license_path_file_name);
+        log::info!("{}", certificate_of_incorporation_file_name);
+
         let result = sqlx::query_as(r#"
             INSERT INTO provider_profiles (user_id, business_name, employee_name, employee_national_id, phone_number,
             employee_count, certificate_of_incorporation, loan_license, business_proof_of_address)
@@ -346,29 +363,14 @@ impl ProviderProfile {
             .bind(&profile.employee_national_id)
             .bind(&profile.phone_number)
             .bind(&profile.employee_count)
-            .bind(&profile.certificate_of_incorporation)
-            .bind(&profile.loan_license)
-            .bind(&profile.business_proof_of_address)
+            .bind(&certificate_of_incorporation_file_name)
+            .bind(&business_loan_license_path_file_name)
+            .bind(&business_proof_of_address_path_file_name)
             .fetch_one(&mut **tx).await;
         // Also upload files
         let _profile = profile.clone();
         let _client = client.clone();
         tokio::spawn(async move {
-            let business_proof_of_address_path_file_name =
-                files::get_business_proof_of_address_path(
-                    &_profile.user_id,
-                    &_profile.business_proof_of_address_file_format,
-                );
-            let business_loan_license_path_file_name = files::get_business_loan_license_path(
-                &_profile.user_id,
-                &_profile.loan_license_file_format,
-            );
-            let certificate_of_incorporation_file_name =
-                files::get_certificate_of_incorporation_path(
-                    &_profile.user_id,
-                    &_profile.certificate_of_incorporation_file_format,
-                );
-
             // Set up data objects for upload
             let mut data_map = HashMap::new();
             let proof_of_address_data = Bytes::from(_profile.business_proof_of_address.clone());
@@ -387,7 +389,6 @@ impl ProviderProfile {
                 certificate_of_incorporation_file_name.clone(),
                 certificate_of_incorporation_data,
             );
-
             for (file_name, data) in data_map.iter() {
                 match files::upload_file_to_s3(&_client, file_name, data.to_owned()).await {
                     Ok(_) => {
@@ -401,20 +402,20 @@ impl ProviderProfile {
         });
         result
     }
-    /// Finds a provider profile by user ID. Returns the profile or an error if not found or if there's a database issue.
-    pub async fn find(pool: &sqlx::PgPool, user_id: i32) -> Result<ProviderProfile, sqlx::Error> {
-        sqlx::query_as("SELECT * FROM provider_profiles WHERE user_id = $1")
-            .bind(&user_id)
+    /// Finds a provider profile by ID. Returns the profile or an error if not found or if there's a database issue.
+    pub async fn find(pool: &sqlx::PgPool, id: i32) -> Result<ProviderProfile, sqlx::Error> {
+        sqlx::query_as("SELECT * FROM provider_profiles WHERE id = $1")
+            .bind(&id)
             .fetch_one(pool)
             .await
     }
-    /// Find provider profile by email address
-    pub async fn find_by_email(
+    /// Finds a provider profile by user ID.
+    pub async fn find_by_user_id(
         pool: &sqlx::PgPool,
-        email: &String,
+        user_id: i32,
     ) -> Result<ProviderProfile, sqlx::Error> {
-        sqlx::query_as::<_, ProviderProfile>("SELECT * FROM provider_profiles WHERE email = $1")
-            .bind(&email)
+        sqlx::query_as("SELECT * FROM provider_profiles WHERE user_id = $1")
+            .bind(&user_id)
             .fetch_one(pool)
             .await
     }
@@ -457,10 +458,9 @@ impl ProviderProfile {
     /// Returns the profile or an error if not found or if there's a database issue.
     pub async fn verify_unique_provider_profile(
         pool: &sqlx::PgPool,
-        email: &String,
         business_name: &String,
         phone_number: &String,
-    ) -> Result<ProviderProfile, sqlx::Error> {
+    ) -> Result<(), sqlx::Error> {
         // Check business name uniqueness
         match ProviderProfile::find_by_business_name(&pool, &business_name).await {
             Ok(_) => {
@@ -486,28 +486,7 @@ impl ProviderProfile {
                 // Continue
             }
         };
-        //Check email uniqueness
-        match ProviderProfile::find_by_email(&pool, &email).await {
-            Ok(_) => {
-                log::error!("Profile found, business email not unique: {}", email);
-                return Err(sqlx::Error::RowNotFound);
-            }
-            Err(_) => {
-                // Continue
-            }
-        };
-        // Finally, return uncommitted profile with provided data
-        Ok(ProviderProfile::new(
-            0, // user_id will be set when profile is created
-            business_name.to_string(),
-            String::new(), // employee name not needed for uniqueness check
-            String::new(), // employee national ID not needed for uniqueness check
-            phone_number.to_string(),
-            0,             // employee count not needed for uniqueness check
-            String::new(), // certificate of incorporation not needed for uniqueness check
-            String::new(), // loan license not needed for uniqueness check
-            String::new(), // business proof of address not needed for uniqueness check
-        ))
+        Ok(())
     }
 }
 
@@ -661,13 +640,17 @@ impl ApplicationToken {
         // Check if token has been used
         if app_token.is_used {
             log::error!("Token {} has already been used", self.token);
-            return Err(sqlx::Error::RowNotFound);
+            return Err(sqlx::Error::InvalidArgument(
+                "Token already used".to_string(),
+            ));
         }
         // Check if token is expired (valid for 24 hours)
         let now = Utc::now();
         if now.signed_duration_since(app_token.created_at).num_hours() >= 24 {
             log::error!("Token {} has expired", self.token);
-            return Err(sqlx::Error::RowNotFound);
+            return Err(sqlx::Error::InvalidArgument(
+                "Token {} has expired".to_string(),
+            ));
         }
         Ok(app_token)
     }

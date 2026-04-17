@@ -14,14 +14,16 @@ mod state;
 mod utils;
 mod workflows;
 
+use std::{collections::HashMap, sync::Arc};
+
 use axum::{
     Router,
     extract::DefaultBodyLimit,
     routing::{get, post},
 };
 
-use tokio;
 use tokio::net::TcpListener;
+use tokio::{self, sync::RwLock};
 use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
@@ -43,10 +45,12 @@ async fn main() {
     // Create the application state
     let tera = renderer::init_renderer();
     let s3_client = files::initialize_s3_client().await;
+    let bucket = Arc::new(RwLock::new(HashMap::new()));
     let state = state::AppState {
         tera,
         pool,
         s3_client,
+        rate_limit_bucket: bucket,
     };
     // Initialize the router with the application state
     let app = init_router(state);
@@ -88,11 +92,14 @@ fn init_router(state: state::AppState) -> Router {
         .route("/forgot-password", get(routes::forgot_password_page))
         .route("/forgot-password", post(routes::handle_forgot_password))
         .nest_service("/static", ServeDir::new("src/static"))
-        .with_state(state)
         .layer(DefaultBodyLimit::disable())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
+                .layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    middleware::default_rate_limit,
+                ))
                 .layer(
                     CorsLayer::new()
                         .allow_methods(tower_http::cors::Any)
@@ -103,4 +110,5 @@ fn init_router(state: state::AppState) -> Router {
                 .layer(axum::middleware::from_fn(middleware::cache_control_headers))
                 .layer(CompressionLayer::new()),
         )
+        .with_state(state)
 }

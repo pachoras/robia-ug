@@ -246,60 +246,76 @@ pub async fn update_password<'a>(
                     match forms::validate_password(new_password).await {
                         Ok(_) => {
                             // Mark token as used
-                            let _ = models::ApplicationToken::set_used(&pool, &app_token.id).await;
-                            // Create new password hash
-                            match models::User::find(&pool, app_token.user_id).await {
-                                Ok(mut user) => {
-                                    user.password_hash =
-                                        crate::utils::get_password_hash(new_password, &user.salt);
-                                    match pool.begin().await {
-                                        Ok(mut tx) => {
-                                            match models::User::update(&mut tx, user.id, &user)
-                                                .await
-                                            {
-                                                Ok(_) => {
-                                                    log::info!(
-                                                        "Password updated for user ID: {}",
-                                                        user.id
-                                                    );
-                                                    // Redirect to login page with success message
-                                                    tx.commit()
-                                                        .await
-                                                        .map_err(|_| AppError {
-                                                            status_code:
-                                                                StatusCode::INTERNAL_SERVER_ERROR,
-                                                            message: Some(
+                            match models::ApplicationToken::set_used(&pool, &app_token.id).await {
+                                Ok(_) => {
+                                    // Create new password hash
+                                    match models::User::find(&pool, app_token.user_id).await {
+                                        Ok(mut user) => {
+                                            user.password_hash = crate::utils::get_password_hash(
+                                                new_password,
+                                                &user.salt,
+                                            );
+                                            match pool.begin().await {
+                                                Ok(mut tx) => {
+                                                    match models::User::update(
+                                                        &mut tx, user.id, &user,
+                                                    )
+                                                    .await
+                                                    {
+                                                        Ok(_) => {
+                                                            log::info!(
+                                                                "Password updated for user ID: {}",
+                                                                user.id
+                                                            );
+                                                            // Redirect to login page with success message
+                                                            tx.commit()
+                                                                .await
+                                                                .map_err(|_| AppError {
+                                                                    status_code:
+                                                                        StatusCode::INTERNAL_SERVER_ERROR,
+                                                                    message: Some(
+                                                                        "Unable to create user".to_string(),
+                                                                    ),
+                                                                })
+                                                                .unwrap();
+                                                        }
+                                                        Err(e) => {
+                                                            log::error!(
+                                                                "Error updating password: {}",
+                                                                e
+                                                            );
+                                                            tx.rollback()
+                                                                .await
+                                                                .map_err(|_| AppError {
+                                                                    status_code:
+                                                                        StatusCode::INTERNAL_SERVER_ERROR,
+                                                                    message: Some(
+                                                                        "Unable to create user".to_string(),
+                                                                    ),
+                                                                })
+                                                                .unwrap();
+                                                            err = Some(
                                                                 "Unable to create user".to_string(),
-                                                            ),
-                                                        })
-                                                        .unwrap();
+                                                            );
+                                                        }
+                                                    }
                                                 }
                                                 Err(e) => {
-                                                    log::error!("Error updating password: {}", e);
-                                                    tx.rollback()
-                                                        .await
-                                                        .map_err(|_| AppError {
-                                                            status_code:
-                                                                StatusCode::INTERNAL_SERVER_ERROR,
-                                                            message: Some(
-                                                                "Unable to create user".to_string(),
-                                                            ),
-                                                        })
-                                                        .unwrap();
+                                                    log::error!("Database pool Error, {}", e);
                                                     err = Some("Unable to create user".to_string());
                                                 }
                                             }
                                         }
-                                        Err(e) => {
-                                            log::error!("Database pool Error, {}", e);
-                                            err = Some("Unable to create user".to_string());
+                                        Err(_) => {
+                                            err = Some("User doesn't exist".to_string());
                                         }
                                     }
                                 }
-                                Err(_) => {
-                                    err = Some("User doesn't exist".to_string());
+                                Err(e) => {
+                                    log::error!("Cannot verify token: {}", e);
+                                    err = Some(format!("Password validation error: {}", e));
                                 }
-                            }
+                            };
                         }
                         Err(e) => {
                             log::error!("Password validation error: {}", e);
@@ -320,14 +336,6 @@ pub async fn update_password<'a>(
     };
     match err {
         Some(_) => {
-            return Ok(SuccessPopupResponse {
-                message: "Your password has been updated successfully. Please log in.".to_string(),
-                tera: tera,
-                path: "src/templates/login.html",
-                context: std::collections::HashMap::new(),
-            });
-        }
-        None => {
             return Err(ErrorPopupResponse {
                 message: err.unwrap().to_string(),
                 tera: tera,
@@ -339,7 +347,15 @@ pub async fn update_password<'a>(
                 },
             });
         }
-    };
+        None => {
+            return Ok(SuccessPopupResponse {
+                message: "Your password has been updated successfully. Please log in.".to_string(),
+                tera: tera,
+                path: "src/templates/login.html",
+                context: std::collections::HashMap::new(),
+            });
+        }
+    }
 }
 /// Creates a new loan applicant user and sends them a verification email. Returns the created user or an error if there's a database issue.
 pub async fn create_application_user(
@@ -501,133 +517,142 @@ pub async fn register_provider<'a>(
             message: None,
         })
         .unwrap();
-    // Check if provider with email, phone number or business name already exists
-    match models::ProviderProfile::find_by_email(&pool, &user_data.email).await {
-        Ok(existing_profile) => {
+    let mut err: Option<AppError> = None;
+    let mut user: Option<User> = None;
+    // Check if provider already exists
+    match models::User::find_by_email(&pool, &user_data.email).await {
+        Ok(found_user) => {
             // Check if the existing profile is already verified
-            if existing_profile.is_verified {
-                return Err(AppError {
-                    status_code: StatusCode::BAD_REQUEST,
-                    message: Some("A provider with this email already exists.".to_string()),
-                });
-            } else {
-                // Otherwise assume resubmission and delete old profile and associated files before creating new one
-                match models::ProviderProfile::delete(&mut tx, existing_profile.id).await {
-                    Ok(_) => {
-                        log::info!(
-                            "Deleted unverified provider profile with ID: {}",
-                            existing_profile.id
-                        );
-                    }
-                    Err(e) => {
-                        log::error!("Error deleting existing provider profile: {}", e);
+            match models::ProviderProfile::find_by_user_id(pool, found_user.id).await {
+                Ok(existing_profile) => {
+                    if !existing_profile.is_verified {
+                        // Assume resubmission and delete old profile and associated files before creating new one
+                        match models::ProviderProfile::delete(&mut tx, existing_profile.id).await {
+                            Ok(_) => {
+                                log::info!(
+                                    "Deleted unverified provider profile with ID: {}",
+                                    existing_profile.id
+                                );
+                            }
+                            Err(e) => {
+                                log::error!("Error deleting existing provider profile: {}", e);
+                                return Err(AppError {
+                                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                    message: Some(
+                                        "Could not process your application at this time."
+                                            .to_string(),
+                                    ),
+                                });
+                            }
+                        }
+                    } else {
+                        // Return if verified already
                         return Err(AppError {
-                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                            message: Some(
-                                "Could not process your application at this time.".to_string(),
-                            ),
+                            status_code: StatusCode::BAD_REQUEST,
+                            message: Some("A provider with this email already exists.".to_string()),
                         });
                     }
+                }
+                Err(_) => {
+                    // Continue, a new profile will be created
+                    user = Some(found_user);
                 }
             }
         }
         Err(sqlx::Error::RowNotFound) => {
-            // If user doesn't exist, check that submitted data isn't alredy assigned to another profile
-            match models::ProviderProfile::verify_unique_provider_profile(
-                &pool,
-                &user_data.email,
-                &profile_data.business_name,
-                &profile_data.phone_number,
-            )
-            .await
-            {
-                Ok(existing_profile) => {
-                    log::warn!(
-                        "Provider with phone number {} or business name {} already exists.\n Please log in instead.",
-                        existing_profile.phone_number,
-                        existing_profile.business_name
-                    );
-                    return Err(AppError {
-                        status_code: StatusCode::BAD_REQUEST,
-                        message: Some("A provider with this profile already exists.".to_string()),
-                    });
-                }
-                Err(sqlx::Error::RowNotFound) => {
-                    // Data appears unique, continue
-                }
-                Err(e) => {
-                    log::error!("Error checking for existing provider: {}", e);
-                    return Err(AppError {
-                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                        message: Some(
-                            "Could not check for existing provider at this time.".to_string(),
-                        ),
-                    });
-                }
-            };
+            // Continue, a new user will be created
         }
-        Err(e) => {
-            log::error!("Error checking for existing provider: {}", e);
+        Err(_) => {
+            log::error!("Error looking up usesr: {}", user_data.email);
             return Err(AppError {
                 status_code: StatusCode::INTERNAL_SERVER_ERROR,
                 message: Some("Could not check for existing provider at this time.".to_string()),
             });
         }
     };
-    let mut err: Option<AppError> = None;
-    // If no profile exists, create a new profile
-    match models::ProviderProfile::create(&mut tx, &profile_data, &client).await {
-        Ok(new_profile) => {
-            log::info!(
-                "Created provider profile for user ID: {}",
-                new_profile.user_id
-            );
-        }
-        Err(sqlx::Error::Database(e)) => {
-            if e.code() == Some("23505".into()) {
-                err = Some(AppError {
-                    status_code: StatusCode::BAD_REQUEST,
-                    message: Some("A provider with this profile already exists.".to_string()),
-                });
-            } else {
-                log::error!("Error creating provider profile: {}", e);
-                err = Some(AppError {
-                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: Some("Could not create provider profile at this time.".to_string()),
-                });
+    // Check that submitted data isn't already assigned to another profile
+    match models::ProviderProfile::verify_unique_provider_profile(
+        &pool,
+        &profile_data.business_name,
+        &profile_data.phone_number,
+    )
+    .await
+    {
+        Ok(_) => {
+            // Create a new user if one doesn't exist
+            if user.is_none() {
+                match create_application_user(
+                    &mut tx,
+                    &user_data.email,
+                    models::TokenTypeVariants::ProEmailVerification,
+                )
+                .await
+                {
+                    Ok(new_user) => {
+                        user = Some(new_user);
+                    }
+                    Err(e) => {
+                        log::error!("Error creating new user provider: {}", e);
+                        err = Some(AppError {
+                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                            message: Some("Could not create user at this time.".to_string()),
+                        });
+                    }
+                };
+            };
+            // Create a new profile
+            let mut new_profile_data = profile_data.clone();
+            // We can unwrap, as user is not none
+            new_profile_data.user_id = user.unwrap().id;
+            match models::ProviderProfile::create(&mut tx, &new_profile_data, &client).await {
+                Ok(new_profile) => {
+                    log::info!(
+                        "Created provider profile for user ID: {}",
+                        new_profile.user_id
+                    );
+                    // Commit if no errors, or rollback
+                    if err.is_none() {
+                        tx.commit()
+                            .await
+                            .map_err(|_| AppError {
+                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message: None,
+                            })
+                            .unwrap();
+                        return Ok(SuccessPopupResponse {
+                            message: "Your provider application has been received, please check your email for further instructions.".to_string(),
+                            tera: tera,
+                            path: "src/templates/index.html",
+                            context: std::collections::HashMap::new(),
+                        });
+                    } else {
+                        tx.rollback()
+                            .await
+                            .map_err(|_| AppError {
+                                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message: None,
+                            })
+                            .unwrap();
+                        return Err(err.unwrap());
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error creating provider profile: {}", e);
+                    return Err(AppError {
+                        status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                        message: Some(
+                            "Could not create provider profile at this time.".to_string(),
+                        ),
+                    });
+                }
             }
         }
-        Err(e) => {
-            log::error!("Error creating provider profile: {}", e);
+        Err(_) => {
+            // Provider is not unique, return an error
             return Err(AppError {
-                status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                message: Some("Could not create provider profile at this time.".to_string()),
+                status_code: StatusCode::BAD_REQUEST,
+                message: Some("A provider with this profile already exists.".to_string()),
             });
         }
     };
-    // Commit if no errors, or rollback
-    if err.is_none() {
-        tx.commit()
-            .await
-            .map_err(|_| AppError {
-                status_code: StatusCode::BAD_REQUEST,
-                message: None,
-            })
-            .unwrap();
-        return Ok(SuccessPopupResponse {
-            message: "Your provider application has been received, please check your email for further instructions.".to_string(),
-            tera: tera,
-            path: "src/templates/index.html",
-            context: std::collections::HashMap::new(),
-        });
-    } else {
-        tx.rollback()
-            .await
-            .map_err(|_| AppError {
-                status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                message: None,
-            })
-            .unwrap();
-        return Err(err.unwrap());
-    }
 }

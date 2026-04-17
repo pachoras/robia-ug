@@ -176,32 +176,41 @@ if (newPassword && confirmPassword) {
 let selected_application = "loans";
 
 window.onload = function () {
-  if (window.location.pathname === "/login") {
+  if (
+    window.location.pathname === "/login" ||
+    window.location.pathname === "/update-password"
+  ) {
     // On select login application, set hidden input value to selected application
     let loanApplicationButton = document.getElementById("login-button-loans");
     let proApplicationButton = document.getElementById("login-button-pro");
     let applicationInput = document.getElementById("application");
 
-    loanApplicationButton.addEventListener("click", () => {
-      applicationInput.value = "loans";
-      selected_application = applicationInput.value;
-      loanApplicationButton.classList.add("login-button-active");
-      loanApplicationButton.classList.remove("login-button-rest");
-      proApplicationButton.classList.add("pro-button-rest");
-      proApplicationButton.classList.remove("pro-button-active");
-    });
+    if (loanApplicationButton) {
+      loanApplicationButton.addEventListener("click", () => {
+        applicationInput.value = "loans";
+        selected_application = applicationInput.value;
+        loanApplicationButton.classList.add("login-button-active");
+        loanApplicationButton.classList.remove("login-button-rest");
+        proApplicationButton.classList.add("pro-button-rest");
+        proApplicationButton.classList.remove("pro-button-active");
+      });
+    }
 
-    proApplicationButton.addEventListener("click", () => {
-      applicationInput.value = "pro";
-      selected_application = applicationInput.value;
-      proApplicationButton.classList.add("pro-button-active");
-      proApplicationButton.classList.remove("pro-button-rest");
-      loanApplicationButton.classList.add("login-button-rest");
-      loanApplicationButton.classList.remove("login-button-active");
-    });
+    if (proApplicationButton) {
+      proApplicationButton.addEventListener("click", () => {
+        applicationInput.value = "pro";
+        selected_application = applicationInput.value;
+        proApplicationButton.classList.add("pro-button-active");
+        proApplicationButton.classList.remove("pro-button-rest");
+        loanApplicationButton.classList.add("login-button-rest");
+        loanApplicationButton.classList.remove("login-button-active");
+      });
+    }
 
     // Set default selected application to loans
-    applicationInput.value = "loans";
+    if (applicationInput) {
+      applicationInput.value = "loans";
+    }
   } else if (
     window.location.pathname === "/" ||
     window.location.pathname === "/provide-loan" ||

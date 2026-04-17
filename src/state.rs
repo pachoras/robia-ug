@@ -29,28 +29,19 @@ pub struct AppState {
 
 /// Update rate limits from global store.
 /// Timeout is automatically updated on each insert
-pub async fn write_limit_values(
-    limits: RateLimits,
-    ip_address: String,
-    rate_limit: u64,
-    new_timeout: Option<u64>,
-) {
+pub async fn write_limit_values(limits: RateLimits, ip_address: String, rate_limit: u64) {
     // Create new list and map values
     let mut new_limit = Vec::new();
-    new_limit.insert(1, rate_limit.to_string());
-    if new_timeout.is_some() {
-        new_limit.insert(0, new_timeout.unwrap().to_string());
-    } else {
-        new_limit.insert(
-            0,
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|e| StateError(e.to_string()))
-                .unwrap()
-                .as_secs()
-                .to_string(),
-        );
-    }
+    new_limit.insert(0, rate_limit.to_string());
+    new_limit.insert(
+        1,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| StateError(e.to_string()))
+            .unwrap()
+            .as_secs()
+            .to_string(),
+    );
     let mut write_lock = limits.write().await;
     write_lock.insert(ip_address, new_limit);
 }
@@ -62,7 +53,7 @@ pub async fn read_limit_values(limits: &RateLimits, ip_address: &String) -> (u64
     if data.is_some() {
         // Unwrap existing values
         let rate_limit = data.unwrap().get(0).unwrap();
-        let timeout = data.unwrap().get(0).unwrap();
+        let timeout = data.unwrap().get(1).unwrap();
         return (rate_limit.parse().unwrap(), timeout.parse().unwrap());
     }
     (0, 0)

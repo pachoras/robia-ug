@@ -68,6 +68,9 @@ impl IntoResponse for AppError {
             }
             .into_response();
             *response.status_mut() = StatusCode::BAD_REQUEST;
+        } else if self.status_code == StatusCode::TOO_MANY_REQUESTS {
+            response = Html("Too many requests. Please try again later").into_response();
+            *response.status_mut() = self.status_code;
         } else {
             response = HtmlResponse {
                 title: "Error".to_string(),

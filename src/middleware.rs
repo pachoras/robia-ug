@@ -7,10 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{
-    responses::AppError,
-    state::{self, RateLimits, StateError, read_limit_values, write_limit_values},
-};
+use crate::state::{self, RateLimits, StateError, read_limit_values, write_limit_values};
 
 pub async fn default_headers(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
@@ -56,24 +53,26 @@ pub async fn check_or_update_ip_rate_limit(
     ip_address: String,
 ) -> Result<(), StateError> {
     let (current_limit, current_timeout) = read_limit_values(&limits, &ip_address).await;
+    log::info!(
+        "new_limit: {}, new_timeout: {}",
+        current_limit,
+        current_timeout
+    );
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| StateError(e.to_string()))
         .unwrap()
         .as_secs()
         - current_timeout;
-    if current_limit > IP_RATE_LIMIT && duration > RATE_LIMIT_TIMEOUT {
-        // If enough time has elapsed, reset the counter
-        let new_timeout = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| StateError(e.to_string()))
-            .unwrap()
-            .as_secs();
-        write_limit_values(limits, ip_address, 1, Some(new_timeout)).await;
+    if current_limit > IP_RATE_LIMIT {
+        if duration > RATE_LIMIT_TIMEOUT {
+            // If enough time has elapsed, reset the counter
+            write_limit_values(limits, ip_address, 1).await;
+        }
         return Err(StateError("User has been rate limited".to_string()));
     } else {
         // Update the limit
-        write_limit_values(limits, ip_address, current_limit + 1, None).await;
+        write_limit_values(limits, ip_address, current_limit + 1).await;
     }
     Ok(())
 }
@@ -86,17 +85,15 @@ pub async fn default_rate_limit(
     match request.headers().get("X-REAL-IP") {
         Some(real_ip) => {
             // Update the state bucket
-            check_or_update_ip_rate_limit(
+            match check_or_update_ip_rate_limit(
                 state.rate_limit_bucket,
                 real_ip.to_str().unwrap().to_string(),
             )
             .await
-            .map_err(|_| AppError {
-                status_code: http::StatusCode::BAD_REQUEST,
-                message: Some("Cannot update rate limit".to_string()),
-            })
-            .unwrap();
-            return next.run(request).await;
+            {
+                Ok(_) => return next.run(request).await,
+                Err(e) => return e.into_response(),
+            }
         }
         None => {
             // Continue with request if header is not present

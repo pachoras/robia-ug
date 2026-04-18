@@ -3,7 +3,13 @@ use axum::{Json, extract::State, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{auth::verify_google_token, consts, mail, models, state::AppState, workflows};
+use crate::{
+    auth::verify_google_token,
+    consts, mail,
+    models::{self, TokenTypeVariants},
+    state::AppState,
+    workflows,
+};
 
 #[derive(Debug)]
 pub struct ApiError(String);
@@ -218,8 +224,14 @@ pub async fn authenticate_application(
 ) -> Result<SuccessResponse<()>, ApiError> {
     match models::ApplicationToken::find_by_token(&state.pool, &payload.token).await {
         Ok(app_token) => {
+            // Check token type
+            if !(app_token.token_type == TokenTypeVariants::LoansAuthentication as i32
+                || app_token.token_type == TokenTypeVariants::ProAuthentication as i32)
+            {
+                return Err(ApiError("Invalid token type.".to_string()));
+            }
             // Validate registration token
-            match app_token.verify(&state.pool).await {
+            match app_token.verify().await {
                 Ok(verified_token) => {
                     // Render change password page
                     let mut context = std::collections::HashMap::new();

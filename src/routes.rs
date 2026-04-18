@@ -291,7 +291,7 @@ pub async fn verify_token(
     match models::ApplicationToken::find_by_token(&state.pool, &token).await {
         Ok(app_token) => {
             // Validate registration token
-            match app_token.verify(&state.pool).await {
+            match app_token.verify().await {
                 Ok(verified_token) => {
                     // Render change password page
                     let mut context = std::collections::HashMap::new();

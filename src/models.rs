@@ -505,13 +505,14 @@ pub struct Subscription {
     pub end_date: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum TokenTypeVariants {
-    PasswordReset,
-    LoansEmailVerification,
-    ProEmailVerification,
-    LoansAuthentication,
-    ProAuthentication,
-    AdminAuthentication,
+    PasswordReset = 0,
+    LoansEmailVerification = 1,
+    ProEmailVerification = 2,
+    LoansAuthentication = 3,
+    ProAuthentication = 4,
+    AdminAuthentication = 5,
 }
 
 #[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
@@ -635,10 +636,9 @@ impl ApplicationToken {
         .await
     }
     /// Verifies a token by its token string.
-    pub async fn verify(self, pool: &sqlx::PgPool) -> Result<ApplicationToken, sqlx::Error> {
-        let app_token = ApplicationToken::find_by_token(pool, &self.token).await?;
+    pub async fn verify(self) -> Result<ApplicationToken, sqlx::Error> {
         // Check if token has been used
-        if app_token.is_used {
+        if self.is_used {
             log::error!("Token {} has already been used", self.token);
             return Err(sqlx::Error::InvalidArgument(
                 "Token already used".to_string(),
@@ -646,13 +646,13 @@ impl ApplicationToken {
         }
         // Check if token is expired (valid for 24 hours)
         let now = Utc::now();
-        if now.signed_duration_since(app_token.created_at).num_hours() >= 24 {
+        if now.signed_duration_since(self.created_at).num_hours() >= 24 {
             log::error!("Token {} has expired", self.token);
             return Err(sqlx::Error::InvalidArgument(
                 "Token {} has expired".to_string(),
             ));
         }
-        Ok(app_token)
+        Ok(self)
     }
 }
 

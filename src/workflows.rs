@@ -240,7 +240,7 @@ pub async fn update_password<'a>(
     match models::ApplicationToken::find_by_token(pool, token).await {
         Ok(token) => {
             // Validate token
-            match token.verify(&pool).await {
+            match token.verify().await {
                 Ok(app_token) => {
                     // Validate new password
                     match forms::validate_password(new_password).await {

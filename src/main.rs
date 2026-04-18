@@ -89,6 +89,7 @@ fn init_router(state: state::AppState) -> Router {
         .route("/login", get(routes::login_page))
         .route("/login", post(routes::handle_login))
         .route("/login-google", post(api::login_google))
+        .route("/authenticate-token", post(api::authenticate_application))
         .route("/forgot-password", get(routes::forgot_password_page))
         .route("/forgot-password", post(routes::handle_forgot_password))
         .nest_service("/static", ServeDir::new("src/static"))

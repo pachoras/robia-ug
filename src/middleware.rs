@@ -53,11 +53,6 @@ pub async fn check_or_update_ip_rate_limit(
     ip_address: String,
 ) -> Result<(), StateError> {
     let (current_limit, current_timeout) = read_limit_values(&limits, &ip_address).await;
-    log::info!(
-        "new_limit: {}, new_timeout: {}",
-        current_limit,
-        current_timeout
-    );
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| StateError(e.to_string()))

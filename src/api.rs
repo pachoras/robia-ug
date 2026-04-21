@@ -4,19 +4,42 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    auth::verify_google_token,
+    auth::{ProvidesValidAuthentication, ProvidesValidSubscription, verify_google_token},
     consts, mail,
-    models::{self, TokenTypeVariants},
+    models::{self, ProviderProfile, TokenTypeVariants},
     state::AppState,
     workflows,
 };
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ApiErrorTypes {
+    InvalidToken,
+    DatabaseError,
+    InvalidApplication,
+    UserNotFound,
+    AuthenticationFailed,
+    SubscriptionInvalid,
+    InternalServerError,
+}
+
 #[derive(Debug)]
-pub struct ApiError(String);
+pub struct ApiError {
+    pub message: String,
+    pub error_type: ApiErrorTypes,
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        Json(json!({"status": "ERROR", "error": self.0})).into_response()
+        let status = match self.error_type {
+            ApiErrorTypes::InvalidToken => "INVALID_TOKEN",
+            ApiErrorTypes::DatabaseError => "DATABASE_ERROR",
+            ApiErrorTypes::InvalidApplication => "INVALID_APPLICATION",
+            ApiErrorTypes::UserNotFound => "USER_NOT_FOUND",
+            ApiErrorTypes::AuthenticationFailed => "AUTHENTICATION_FAILED",
+            ApiErrorTypes::SubscriptionInvalid => "SUBSCRIPTION_INVALID",
+            ApiErrorTypes::InternalServerError => "INTERNAL_SERVER_ERROR",
+        };
+        Json(json!({"status": status, "error": self.message})).into_response()
     }
 }
 
@@ -92,17 +115,29 @@ pub async fn login_google(
                             .pool
                             .begin()
                             .await
-                            .map_err(|_| ApiError("Database error".to_string()))
+                            .map_err(|_| ApiError {
+                                message: "Database error".to_string(),
+                                error_type: ApiErrorTypes::DatabaseError,
+                            })
                             .unwrap();
                         if let Err(e) = models::User::update(&mut tx, user.id, &user).await {
                             mail::send_admin_error_email(&e.to_string())
-                                .map_err(|_| ApiError("Database error".to_string()))
+                                .map_err(|_| ApiError {
+                                    message: "Database error".to_string(),
+                                    error_type: ApiErrorTypes::DatabaseError,
+                                })
                                 .unwrap();
                             tx.rollback()
                                 .await
-                                .map_err(|_| ApiError("Database error".to_string()))
+                                .map_err(|_| ApiError {
+                                    message: "Database error".to_string(),
+                                    error_type: ApiErrorTypes::DatabaseError,
+                                })
                                 .unwrap();
-                            return Err(ApiError("A database error occurred.".to_string()));
+                            return Err(ApiError {
+                                message: "A Database error".to_string(),
+                                error_type: ApiErrorTypes::DatabaseError,
+                            });
                         }
                     };
                     // Match the selected login portal
@@ -113,7 +148,10 @@ pub async fn login_google(
                             "Invalid application variant selected: {}",
                             payload.application
                         );
-                        return Err(ApiError("Invalid application selected.".to_string()));
+                        return Err(ApiError {
+                            message: "Invalid application selected.".to_string(),
+                            error_type: ApiErrorTypes::DatabaseError,
+                        });
                     } else if payload.application == consts::APPLICATION_VARIANT_PRO {
                         // Create auth token and return it as http-only cookie for pro user
                         match workflows::create_auth_token(
@@ -124,10 +162,6 @@ pub async fn login_google(
                         .await
                         {
                             Ok(token) => {
-                                log::info!(
-                                    "User with email {} logged in successfully.",
-                                    &claims.email
-                                );
                                 // Redirect to selected application page
                                 let pro_application_url = std::env::var("PRO_APPLICATION_URL")
                                     .unwrap_or_else(|_| "http://localhost:4000".to_string());
@@ -145,7 +179,10 @@ pub async fn login_google(
                                     &claims.email,
                                     e
                                 );
-                                return Err(ApiError("Could not log in at this time.".to_string()));
+                                return Err(ApiError {
+                                    message: "Could not log in at this time.".to_string(),
+                                    error_type: ApiErrorTypes::AuthenticationFailed,
+                                });
                             }
                         }
                     } else if payload.application == consts::APPLICATION_VARIANT_LOANS {
@@ -180,7 +217,10 @@ pub async fn login_google(
                                     &claims.email,
                                     e
                                 );
-                                return Err(ApiError("Could not log in at this time.".to_string()));
+                                return Err(ApiError {
+                                    message: "Could not log in at this time.".to_string(),
+                                    error_type: ApiErrorTypes::AuthenticationFailed,
+                                });
                             }
                         }
                     } else {
@@ -188,64 +228,67 @@ pub async fn login_google(
                             "Invalid application variant selected: {}",
                             payload.application
                         );
-                        return Err(ApiError("Invalid application selected.".to_string()));
+                        return Err(ApiError {
+                            message: "Invalid application selected.".to_string(),
+                            error_type: ApiErrorTypes::InvalidApplication,
+                        });
                     }
                 }
                 Err(sqlx::Error::RowNotFound) => {
-                    return Err(ApiError(
-                        "No user with this email found. Please sign up first.".to_string(),
-                    ));
+                    return Err(ApiError {
+                        message: "No user with this email found. Please sign up first.".to_string(),
+                        error_type: ApiErrorTypes::UserNotFound,
+                    });
                 }
                 Err(e) => {
                     log::error!("Database error checking for user by email: {}", e);
                     mail::send_admin_error_email(&e.to_string()).unwrap_or_else(|_| ());
-                    return Err(ApiError(
-                        "Database error occurred. Please try again later.".to_string(),
-                    ));
+                    return Err(ApiError {
+                        message: "Database error occurred. Please try again later.".to_string(),
+                        error_type: ApiErrorTypes::DatabaseError,
+                    });
                 }
             }
         }
         Err(err) => {
             log::error!("Error decoding JWT: {}", err);
             mail::send_admin_error_email(&err.to_string()).unwrap_or_else(|_| ());
-            return Err(ApiError("Invalid authentication token.".to_string()));
+            return Err(ApiError {
+                message: "Invalid authentication token.".to_string(),
+                error_type: ApiErrorTypes::AuthenticationFailed,
+            });
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AuthenticationSubmission {
-    token: String,
+pub struct AuthenticationSuccess {
+    pub token: String,
 }
 /// Endpoint for validating tokens.
 pub async fn authenticate_application(
-    State(state): State<AppState>,
-    Json(payload): Json<AuthenticationSubmission>,
-) -> Result<SuccessResponse<()>, ApiError> {
-    match models::ApplicationToken::find_by_token(&state.pool, &payload.token).await {
-        Ok(app_token) => {
-            // Check token type
-            if !(app_token.token_type == TokenTypeVariants::LoansAuthentication as i32
-                || app_token.token_type == TokenTypeVariants::ProAuthentication as i32)
-            {
-                return Err(ApiError("Invalid token type.".to_string()));
-            }
-            // Validate registration token
-            match app_token.verify().await {
-                Ok(verified_token) => {
-                    // Render change password page
-                    let mut context = std::collections::HashMap::new();
-                    context.insert("token".to_string(), verified_token.token);
-                    return Ok(SuccessResponse { data: Some(()) });
-                }
-                Err(e) => {
-                    log::error!("Invalid token: {}", e);
-                    return Err(ApiError("Token has expired.".to_string()));
-                }
-            }
-        }
-        Err(_) => {
-            return Err(ApiError("Invalid token.".to_string()));
-        }
+    ProvidesValidAuthentication(auth_token): ProvidesValidAuthentication,
+) -> Result<SuccessResponse<AuthenticationSuccess>, ApiError> {
+    // Check token type
+    if !(auth_token.token_type == TokenTypeVariants::LoansAuthentication as i32
+        || auth_token.token_type == TokenTypeVariants::ProAuthentication as i32)
+    {
+        return Err(ApiError {
+            message: "Invalid token type.".to_string(),
+            error_type: ApiErrorTypes::AuthenticationFailed,
+        });
     }
+    return Ok(SuccessResponse {
+        data: Some(AuthenticationSuccess {
+            token: auth_token.token,
+        }),
+    });
+}
+/// Endpoint for getting a valid profile.
+pub async fn get_valid_provider_profile(
+    ProvidesValidSubscription(provider_profile): ProvidesValidSubscription,
+) -> Result<SuccessResponse<ProviderProfile>, ApiError> {
+    return Ok(SuccessResponse {
+        data: Some(provider_profile),
+    });
 }

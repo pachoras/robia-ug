@@ -128,17 +128,11 @@ function handleCredentialResponse(response) {
       application: selectedLoginType,
     }),
   })
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.status === "OK") {
-        if (selectedLoginType === "loans") {
-          // Redirect to the app login url
-          window.location.href = `https://app.robia.ug/login/${data.token}`;
-        } else if (selectedLoginType === "pro") {
-          // Redirect to the pro login url
-          window.location.href = `https://pro.robia.ug/login/${data.token}`;
-        }
-      } else if (data.status === "MISSING") {
+    .then((response) => response.json())
+    .then((result) => {
+      if (result.status === "OK") {
+        window.location.href = `${result.data.application_url}/${result.data.token}`;
+      } else if (result.status === "MISSING") {
         // Show popup element prompting user to sign up
         successPopupHTML = successPopupHTML.replace(
           "message",
@@ -152,7 +146,7 @@ function handleCredentialResponse(response) {
           newdiv.remove();
         }, 9900);
       } else {
-        console.error("Login error:", data.status);
+        console.error("Login error, invalid status:", result.status);
       }
     })
     .catch((error) => {

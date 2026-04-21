@@ -1,72 +1,79 @@
 {% extends "base.html" %} {% block content %}
 <form class="login-container" method="post" action="/login">
-  <img height="48" width="48" src="/static/svg/logo.svg" alt="logo" />
-  <div class="login-button-group">
-    <button
-      id="login-button-loans"
-      class="loans-login-button login-button-active no-border"
-      type="button"
-    >
-      Loan App
-    </button>
-    <button
-      id="login-button-pro"
-      class="pro-login-button pro-button-rest no-border"
-      type="button"
-    >
-      Provider App
-    </button>
-  </div>
-  <div
-    data-client_id="241785916661-9a6b1k373p8lnph090cknnft8pir05ut.apps.googleusercontent.com"
-    data-callback="handleCredentialResponse"
-    id="g_id_onload"
-  ></div>
-  <div
-    class="g_id_signin"
-    data-type="standard"
-    data-size="large"
-    data-theme="outline"
-    data-text="continue_with"
-    data-shape="circle"
-    data-logo_alignment="left"
-  ></div>
-  <p class="login-or">--- or ---</p>
-  <div class="input-base-section full-width">
-    <div class="input-base-container full-width">
-      <p>Email</p>
-      <input
-        id="username"
-        name="email"
-        type="email"
-        class="input-base-item full-width"
-        placeholder="name@example.com"
-        required
-      />
+    <img height="48" width="48" src="/static/svg/logo.svg" alt="logo" />
+    <div class="login-button-group">
+        <button
+            id="login-button-loans"
+            class="loans-login-button login-button-active no-border"
+            type="button"
+        >
+            Loan App
+        </button>
+        <button
+            id="login-button-pro"
+            class="pro-login-button pro-button-rest no-border"
+            type="button"
+        >
+            Provider App
+        </button>
     </div>
-  </div>
-  <div class="input-base-section full-width">
-    <div class="input-base-container full-width">
-      <p>Password</p>
-      <input
-        id="password"
-        name="password"
-        type="password"
-        class="input-base-item full-width"
-        placeholder="Enter your password"
-        required
-      />
+    <div
+        data-client_id="241785916661-9a6b1k373p8lnph090cknnft8pir05ut.apps.googleusercontent.com"
+        data-callback="handleCredentialResponse"
+        id="g_id_onload"
+        defer
+    ></div>
+    <div
+        class="g_id_signin"
+        data-type="standard"
+        data-size="large"
+        data-theme="outline"
+        data-text="continue_with"
+        data-shape="circle"
+        data-logo_alignment="left"
+    ></div>
+    <p class="login-or">--- or ---</p>
+    <div class="input-base-section full-width">
+        <div class="input-base-container full-width">
+            <p>Email</p>
+            <input
+                id="username"
+                name="email"
+                type="email"
+                class="input-base-item full-width"
+                placeholder="name@example.com"
+                required
+            />
+        </div>
     </div>
-  </div>
-  <input hidden id="application" name="application" type="text" value="loans" />
-  <div class="input-base-section full-width">
-    <div class="input-base-container full-width">
-      <a href="/forgot-password" class="forgot-password-link"
-        >Forgot your password?</a
-      >
+    <div class="input-base-section full-width">
+        <div class="input-base-container full-width">
+            <p>Password</p>
+            <input
+                id="password"
+                name="password"
+                type="password"
+                class="input-base-item full-width"
+                placeholder="Enter your password"
+                required
+            />
+        </div>
     </div>
-  </div>
-  <button class="submit-button" type="submit">Sign In</button>
+    <input
+        hidden
+        id="application"
+        name="application"
+        type="text"
+        value="loans"
+    />
+    <div class="input-base-section full-width">
+        <div class="input-base-container full-width">
+            <a href="/forgot-password" class="forgot-password-link"
+                >Forgot your password?</a
+            >
+        </div>
+    </div>
+    <button class="submit-button" type="submit">Sign In</button>
 </form>
 
 {% endblock content %}

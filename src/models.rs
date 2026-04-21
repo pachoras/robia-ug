@@ -505,7 +505,109 @@ pub struct Subscription {
     pub end_date: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl Subscription {
+    /// Create a new subscription object
+    pub fn new(
+        user_id: i32,
+        subscription_type: i32,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Self {
+        Subscription {
+            id: 0, // This will be set by the database
+            user_id,
+            subscription_type,
+            start_date,
+            end_date,
+        }
+    }
+
+    /// Creates a new subscription. Returns the created subscription or an error if there's a database issue.
+    pub async fn create(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        subscription: &Subscription,
+    ) -> Result<Subscription, sqlx::Error> {
+        sqlx::query_as::<_, Subscription>(
+            "INSERT INTO subscriptions (user_id, subscription_type, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING *",
+        )
+        .bind(&subscription.user_id)
+        .bind(&subscription.subscription_type)
+        .bind(&subscription.start_date)
+        .bind(&subscription.end_date)
+        .fetch_one(&mut **tx)
+        .await
+    }
+    /// Finds a subscription by its ID. Returns an error if not found or if there's a database issue.
+    pub async fn find(pool: &sqlx::PgPool, id: i32) -> Result<Subscription, sqlx::Error> {
+        sqlx::query_as::<_, Subscription>("SELECT * FROM subscriptions WHERE id = $1")
+            .bind(&id)
+            .fetch_one(pool)
+            .await
+    }
+    /// Finds a subscription by user ID. Returns an error if not found or if there's a database issue.
+    pub async fn find_by_user_id(
+        pool: &sqlx::PgPool,
+        user_id: i32,
+    ) -> Result<Subscription, sqlx::Error> {
+        sqlx::query_as::<_, Subscription>("SELECT * FROM subscriptions WHERE user_id = $1")
+            .bind(&user_id)
+            .fetch_one(pool)
+            .await
+    }
+    /// Updates a subscription by its ID. Returns the updated subscription or an error if there's a database issue.
+    pub async fn update(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        id: i32,
+        subscription: &Subscription,
+    ) -> Result<Subscription, sqlx::Error> {
+        sqlx::query_as::<_, Subscription>(
+            "UPDATE subscriptions SET user_id = $1, subscription_type = $2, start_date = $3, end_date = $4 WHERE id = $5 RETURNING *",
+        )
+        .bind(&subscription.user_id)
+        .bind(&subscription.subscription_type)
+        .bind(&subscription.start_date)
+        .bind(&subscription.end_date)
+        .bind(&id)
+        .fetch_one(&mut **tx)
+        .await
+    }
+    /// Deletes a subscription by its ID. Returns an error if there's a database issue.
+    pub async fn delete(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        id: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM subscriptions WHERE id = $1")
+            .bind(&id)
+            .fetch_optional(&mut **tx)
+            .await?;
+        Ok(())
+    }
+    /// Deletes a subscription by user ID. Returns an error if there's a database issue.
+    pub async fn delete_by_user_id(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM subscriptions WHERE user_id = $1")
+            .bind(&user_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+        Ok(())
+    }
+    /// Validate a subscription.
+    pub async fn validate(&self) -> Result<&Self, sqlx::Error> {
+        // Check if subscription is still valid
+        let now = Utc::now();
+        if now.signed_duration_since(self.end_date).num_hours() > 0 {
+            log::info!("Subscription for user: {} has expired", self.user_id);
+            return Err(sqlx::Error::InvalidArgument(
+                "Subscription has expired".to_string(),
+            ));
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TokenTypeVariants {
     PasswordReset = 0,
     LoansEmailVerification = 1,
@@ -561,13 +663,14 @@ impl ApplicationToken {
         .await
     }
     /// Deletes a registration token by its token string. Returns an error if there's a database issue.
-    pub async fn delete(pool: &sqlx::PgPool, token: &String) -> Result<(), sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        let result = sqlx::query("DELETE FROM application_tokens WHERE token = $1")
+    pub async fn delete(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        token: &String,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM application_tokens WHERE token = $1")
             .bind(&token)
-            .fetch_optional(&mut *tx)
-            .await;
-        commit_else_rollback(tx, result).await?;
+            .fetch_optional(&mut **tx)
+            .await?;
         Ok(())
     }
     /// Marks a registration token as used by its ID. Returns the updated token or an error if there's a database issue.
@@ -617,7 +720,7 @@ impl ApplicationToken {
         pool: &sqlx::PgPool,
         user_id: i32,
         token_type: TokenTypeVariants,
-    ) -> Result<ApplicationToken, sqlx::Error> {
+    ) -> Result<Vec<ApplicationToken>, sqlx::Error> {
         let variant_type = match token_type {
             TokenTypeVariants::PasswordReset => 0,
             TokenTypeVariants::LoansEmailVerification => 1,
@@ -632,11 +735,11 @@ impl ApplicationToken {
         )
         .bind(&user_id)
         .bind(&variant_type)
-        .fetch_one(&mut *tx)
+        .fetch_all(&mut *tx)
         .await
     }
     /// Verifies a token by its token string.
-    pub async fn verify(self) -> Result<ApplicationToken, sqlx::Error> {
+    pub async fn verify(&self) -> Result<&Self, sqlx::Error> {
         // Check if token has been used
         if self.is_used {
             log::error!("Token {} has already been used", self.token);

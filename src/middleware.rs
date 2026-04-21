@@ -16,6 +16,10 @@ pub async fn default_headers(request: Request, next: Next) -> Response {
         http::HeaderValue::from_static("DENY"),
     );
     response.headers_mut().insert(
+        http::header::ALLOW,
+        http::HeaderValue::from_static("DELETE,GET,HEAD,PATCH,POST,PUT"),
+    );
+    response.headers_mut().insert(
         http::header::X_XSS_PROTECTION,
         http::HeaderValue::from_static("1; mode=block"),
     );

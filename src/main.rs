@@ -14,14 +14,16 @@ mod state;
 mod utils;
 mod workflows;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use axum::{
     Router,
     extract::DefaultBodyLimit,
+    http::{self, HeaderValue},
     routing::{get, post},
 };
 
+use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use tokio::net::TcpListener;
 use tokio::{self, sync::RwLock};
 use tower::ServiceBuilder;
@@ -77,6 +79,8 @@ fn init_router(state: state::AppState) -> Router {
         .with(EnvFilter::from_default_env())
         .init();
 
+    // 2. Initialize CORS
+
     Router::new()
         .route("/", get(routes::index))
         .route("/register-loan", post(routes::register_loan_application))
@@ -89,9 +93,14 @@ fn init_router(state: state::AppState) -> Router {
         .route("/login", get(routes::login_page))
         .route("/login", post(routes::handle_login))
         .route("/login-google", post(api::login_google))
-        .route("/authenticate-token", post(api::authenticate_application))
         .route("/forgot-password", get(routes::forgot_password_page))
         .route("/forgot-password", post(routes::handle_forgot_password))
+        .nest(
+            "/api",
+            Router::new()
+                .route("/authenticate-token", post(api::authenticate_application))
+                .route("/validate-profile", get(api::get_valid_provider_profile)),
+        )
         .nest_service("/static", ServeDir::new("src/static"))
         .layer(DefaultBodyLimit::disable())
         .layer(
@@ -101,14 +110,27 @@ fn init_router(state: state::AppState) -> Router {
                     state.clone(),
                     middleware::default_rate_limit,
                 ))
-                .layer(
-                    CorsLayer::new()
-                        .allow_methods(tower_http::cors::Any)
-                        .allow_headers(tower_http::cors::Any),
-                )
                 .layer(axum::middleware::from_fn(middleware::default_headers))
                 .layer(axum::middleware::from_fn(middleware::security_headers))
                 .layer(axum::middleware::from_fn(middleware::cache_control_headers))
+                .layer(
+                    CorsLayer::new()
+                        .allow_methods([
+                            http::Method::GET,
+                            http::Method::PUT,
+                            http::Method::POST,
+                            http::Method::PATCH,
+                            http::Method::DELETE,
+                        ])
+                        .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE, REFERER, USER_AGENT])
+                        .allow_origin([
+                            "http://localhost:4000".parse::<HeaderValue>().unwrap(),
+                            "http://localhost:3000".parse::<HeaderValue>().unwrap(),
+                            "http://localhost".parse::<HeaderValue>().unwrap(),
+                        ])
+                        .allow_credentials(true)
+                        .max_age(Duration::from_secs(86400)),
+                )
                 .layer(CompressionLayer::new()),
         )
         .with_state(state)

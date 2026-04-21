@@ -95,25 +95,18 @@ pub async fn create_password_reset_token(
     )
     .await
     {
-        Ok(existing_token) => {
-            log::info!(
-                "Existing password reset token found for user with email {}, deleting it",
-                user.email
-            );
-            match ApplicationToken::delete(pool, &existing_token.token).await {
-                Ok(_) => {
-                    log::info!(
-                        "Deleted existing password reset token for user with email {}",
-                        user.email
-                    );
-                }
-                Err(e) => {
-                    log::error!(
-                        "Error deleting existing password reset token for user with email {}: {}",
-                        user.email,
-                        e
-                    );
-                    return Err(e);
+        Ok(existing_tokens) => {
+            for existing_token in existing_tokens {
+                match ApplicationToken::delete(&mut tx, &existing_token.token).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!(
+                            "Error deleting existing authentication token for user ID {}: {}",
+                            user.id,
+                            e
+                        );
+                        return Err(e);
+                    }
                 }
             }
         }
@@ -190,34 +183,41 @@ pub async fn create_auth_token(
             )),
         })
         .unwrap();
-    let create_token: ApplicationToken;
-    match token_variant {
-        models::TokenTypeVariants::LoansAuthentication => {
-            create_token = ApplicationToken::new(
+    // First delete any existing tokens for this user to prevent multiple valid tokens at the same time
+    match ApplicationToken::find_any_by_user_id_and_type(pool, user_id, token_variant.clone()).await
+    {
+        Ok(existing_tokens) => {
+            for existing_token in existing_tokens {
+                match ApplicationToken::delete(&mut tx, &existing_token.token).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!(
+                            "Error deleting existing authentication token for user ID {}: {}",
+                            user_id,
+                            e
+                        );
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // No existing token found, continue with creating new one
+        }
+        Err(e) => {
+            log::error!(
+                "Error checking for existing authentication token for user ID {}: {}",
                 user_id,
-                models::TokenTypeVariants::LoansAuthentication,
-                utils::generate_random_string(64),
+                e
             );
+            return Err(e);
         }
-        models::TokenTypeVariants::ProAuthentication => {
-            create_token = ApplicationToken::new(
-                user_id,
-                models::TokenTypeVariants::ProAuthentication,
-                utils::generate_random_string(64),
-            );
-        }
-        models::TokenTypeVariants::AdminAuthentication => {
-            create_token = ApplicationToken::new(
-                user_id,
-                models::TokenTypeVariants::AdminAuthentication,
-                utils::generate_random_string(64),
-            );
-        }
-        _ => {
-            log::error!("Invalid application variant specified for auth token creation");
-            return Err(sqlx::Error::RowNotFound);
-        }
-    };
+    }
+
+    // Then create new registration token
+    let create_token =
+        ApplicationToken::new(user_id, token_variant, utils::generate_random_string(64));
+
     match ApplicationToken::create(&mut tx, &create_token).await {
         Ok(token) => {
             tx.commit().await?;

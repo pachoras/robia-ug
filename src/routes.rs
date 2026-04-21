@@ -295,7 +295,7 @@ pub async fn verify_token(
                 Ok(verified_token) => {
                     // Render change password page
                     let mut context = std::collections::HashMap::new();
-                    context.insert("token".to_string(), verified_token.token);
+                    context.insert("token".to_string(), verified_token.token.clone());
                     return HtmlResponse {
                         title: "Update password".to_string(),
                         path: "src/templates/change_password.html".to_string(),

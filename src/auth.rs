@@ -1,64 +1,119 @@
-use axum::{
-    extract::FromRequestParts,
-    http::{
-        StatusCode,
-        header::{AUTHORIZATION, HeaderValue},
-    },
-};
+use axum::{extract::FromRequestParts, http::header::AUTHORIZATION};
 
-use crate::state;
-use crate::{models, responses::AppError};
+use crate::{
+    api::{ApiError, ApiErrorTypes},
+    models::{self, ApplicationToken},
+    state,
+};
 
 use serde::Deserialize;
 
-pub struct ExtractAuthenticationCode(pub HeaderValue);
-
-impl FromRequestParts<state::AppState> for ExtractAuthenticationCode {
-    type Rejection = AppError;
-
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        state: &state::AppState,
-    ) -> Result<Self, AppError> {
-        if let Some(auth_header) = parts.headers.get(AUTHORIZATION) {
-            if let Ok(auth_str) = auth_header.to_str() {
-                if auth_str.starts_with("Bearer ") {
-                    let token = auth_str.trim_start_matches("Bearer ").to_string();
-                    let database_token =
-                        models::ApplicationToken::find_by_token(&state.pool, &token).await;
-                    if database_token.is_err() {
-                        return Err(AppError {
-                            status_code: StatusCode::UNAUTHORIZED,
-                            message: Some("Invalid authentication token".to_string()),
+// Verify user's token
+async fn verify_token(
+    parts: &mut axum::http::request::Parts,
+    state: &state::AppState,
+) -> Result<ApplicationToken, ApiError> {
+    if let Some(auth_header) = parts.headers.get(AUTHORIZATION) {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if auth_str.starts_with("Bearer ") {
+                let token = auth_str.trim_start_matches("Bearer ").to_string();
+                match models::ApplicationToken::find_by_token(&state.pool, &token).await {
+                    Ok(matched_token) => {
+                        return Ok(matched_token);
+                    }
+                    Err(_) => {
+                        return Err(ApiError {
+                            message: "Invalid authentication token.".to_string(),
+                            error_type: ApiErrorTypes::AuthenticationFailed,
                         });
                     }
-                    let code = ExtractAuthenticationCode(
-                        HeaderValue::from_str(
-                            &database_token
-                                .map_err(|_| AppError {
-                                    status_code: StatusCode::UNAUTHORIZED,
-                                    message: Some("Invalid authentication token".to_string()),
-                                })?
-                                .token,
-                        )
-                        .map_err(|_| AppError {
-                            status_code: StatusCode::UNAUTHORIZED,
-                            message: Some("Invalid authentication token".to_string()),
-                        })?,
-                    );
-                    return Ok(code);
-                } else {
-                    return Err(AppError {
-                        status_code: StatusCode::UNAUTHORIZED,
-                        message: Some("Authorization header must start with 'Bearer '".to_string()),
-                    });
-                }
+                };
+            } else {
+                return Err(ApiError {
+                    message: "Authorization header must start with Bearer: ".to_string(),
+                    error_type: ApiErrorTypes::AuthenticationFailed,
+                });
             }
         }
-        return Err(AppError {
-            status_code: StatusCode::UNAUTHORIZED,
-            message: Some("Missing or invalid Authorization header".to_string()),
-        });
+    }
+    return Err(ApiError {
+        message: "Missing or invalid authentication header".to_string(),
+        error_type: ApiErrorTypes::AuthenticationFailed,
+    });
+}
+pub struct ProvidesValidAuthentication(pub models::ApplicationToken);
+
+impl FromRequestParts<state::AppState> for ProvidesValidAuthentication {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        mut parts: &mut axum::http::request::Parts,
+        state: &state::AppState,
+    ) -> Result<Self, ApiError> {
+        match verify_token(&mut parts, &state).await {
+            Ok(token) => return Ok(ProvidesValidAuthentication(token)),
+            Err(_) => {
+                return Err(ApiError {
+                    message: "Missing or invalid authentication header".to_string(),
+                    error_type: ApiErrorTypes::AuthenticationFailed,
+                });
+            }
+        }
+    }
+}
+
+/// Cannot be included with ProvidesAuthentication
+pub struct ProvidesValidSubscription(pub models::ProviderProfile);
+
+impl FromRequestParts<state::AppState> for ProvidesValidSubscription {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        mut parts: &mut axum::http::request::Parts,
+        state: &state::AppState,
+    ) -> Result<Self, ApiError> {
+        match verify_token(&mut parts, &state).await {
+            Ok(token) => {
+                match models::ProviderProfile::find_by_user_id(&state.pool, token.user_id).await {
+                    Ok(profile) => {
+                        // Check that provider has valid subscription
+                        match models::Subscription::find_by_user_id(&state.pool, profile.user_id)
+                            .await
+                        {
+                            Ok(subscription) => match subscription.validate().await {
+                                Ok(_) => {
+                                    return Ok(ProvidesValidSubscription(profile));
+                                }
+                                Err(_) => {
+                                    return Err(ApiError {
+                                        message: "Expired Subscription".to_string(),
+                                        error_type: ApiErrorTypes::SubscriptionInvalid,
+                                    });
+                                }
+                            },
+                            Err(_) => {
+                                return Err(ApiError {
+                                    message: "No Subscription".to_string(),
+                                    error_type: ApiErrorTypes::SubscriptionInvalid,
+                                });
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        return Err(ApiError {
+                            message: "Missing profile".to_string(),
+                            error_type: ApiErrorTypes::UserNotFound,
+                        });
+                    }
+                };
+            }
+            Err(_) => {
+                return Err(ApiError {
+                    message: "Missing or invalid authentication header".to_string(),
+                    error_type: ApiErrorTypes::AuthenticationFailed,
+                });
+            }
+        }
     }
 }
 

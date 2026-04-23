@@ -13,7 +13,7 @@ use reqwest::StatusCode;
 
 use crate::{
     forms::{self, ProviderProfileData, UserData, UserProfileData},
-    mail::send_email,
+    mail::{send_password_reset_email, send_welcome_email},
     models::{self, ApplicationToken, User},
     responses::{AppError, ErrorPopupResponse, SuccessPopupResponse},
     utils,
@@ -28,38 +28,7 @@ pub async fn create_registration_token(
     match ApplicationToken::create(tx, &create_token).await {
         Ok(token) => {
             // Send verification email
-            let hostname =
-                std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost:8000".to_string());
-            let proto: String = if hostname.contains("localhost") {
-                "http".to_string()
-            } else {
-                "https".to_string()
-            };
-            let link = format!(
-                "{}://{}/verify-token/{}",
-                proto, hostname, create_token.token
-            );
-            let body = format!(
-                r#"Your loan application has been received, please click the link below to complete your
-                registration and view your loan application status.
-
-                If you cannot click the link, please copy and paste the following URL into your browser:    {}"#,
-                link
-            );
-            // Send email in background task to avoid blocking the main thread
-            let user = user.clone();
-            tokio::spawn(async move {
-                send_email(
-                    "Robia Labs <no-reply@robialabs.com>",
-                    &user.email,
-                    "Welcome to Robia Loans",
-                    &body,
-                    &link,
-                    "Verify email",
-                )
-                .await
-                .unwrap();
-            });
+            send_welcome_email(user.clone(), token.token.clone()).await;
             Ok(token)
         }
         Err(e) => return Err(e),
@@ -125,41 +94,8 @@ pub async fn create_password_reset_token(
 
     match ApplicationToken::create(&mut tx, &create_token).await {
         Ok(token) => {
-            // Send verification email
-            let hostname = std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
-            let proto: String = if hostname == "localhost" {
-                "http".to_string()
-            } else {
-                "https".to_string()
-            };
-            let link = format!(
-                "{}://{}/verify-token/{}",
-                proto, hostname, create_token.token
-            );
-            let body = format!(
-                r#"You recently requested a password reset. Please click the link below to reset your password.
-
-                If you did not request a password reset, please ignore this email or reply to let us know.
-                This password reset link is only valid for the next 24 hours.
-
-                If you cannot click the link, please copy and
-                paste the following URL into your browser:    {}"#,
-                link
-            );
-            // Send email in background task to avoid blocking the main thread
-            let user = user.clone();
-            tokio::spawn(async move {
-                send_email(
-                    "Robia Labs <no-reply@robialabs.com>",
-                    &user.email,
-                    "Password Reset Request",
-                    &body,
-                    &link,
-                    "Reset Password",
-                )
-                .await
-                .unwrap();
-            });
+            // Send email
+            send_password_reset_email(user.email.clone(), token.token.clone()).await;
             Ok(token)
         }
         Err(e) => return Err(e),

@@ -48,6 +48,14 @@ pub async fn cache_control_headers(request: Request, next: Next) -> Response {
     response
 }
 
+pub async fn api_cache_control_headers(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        http::header::CACHE_CONTROL,
+        http::HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+    );
+    response
+}
 const IP_RATE_LIMIT: u64 = 10;
 const RATE_LIMIT_TIMEOUT: u64 = 60;
 

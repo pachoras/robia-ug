@@ -7,6 +7,8 @@ use std::{
 use axum::response::{Html, IntoResponse, Response};
 use tokio::sync::RwLock;
 
+use crate::flutterwave::Flutterwave;
+
 pub type RateLimits = Arc<RwLock<HashMap<String, Vec<String>>>>;
 
 #[derive(Debug)]
@@ -25,6 +27,7 @@ pub struct AppState {
     pub pool: sqlx::PgPool,
     pub s3_client: aws_sdk_s3::Client,
     pub rate_limit_bucket: RateLimits,
+    pub flutterwave: Flutterwave,
 }
 
 /// Update rate limits from global store.

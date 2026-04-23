@@ -65,6 +65,37 @@
             .right-margin {
                 margin-right: 1rem;
             }
+            .summary-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+                font-size: 15px;
+            }
+            .summary-table th,
+            .summary-table td {
+                padding: 10px 14px;
+                text-align: left;
+                border-bottom: 1px solid #eee;
+            }
+            .summary-table th {
+                background-color: #f5f5f5;
+                color: #555;
+                font-weight: 600;
+                text-transform: uppercase;
+                font-size: 12px;
+                letter-spacing: 0.05em;
+            }
+            .summary-table td:last-child {
+                text-align: right;
+            }
+            .summary-table th:last-child {
+                text-align: right;
+            }
+            .summary-table .total-row td {
+                font-weight: 700;
+                border-top: 2px solid #ddd;
+                border-bottom: none;
+            }
         </style>
     </head>
     <body>
@@ -82,12 +113,36 @@
             </div>
             <div class="email-body">
                 <h2>{{ title }}</h2>
-                <p>{{ message }}</p>
-                {% if link %}
-                <div class="button-container">
-                    <a href="{{ link }}" class="button">{{ action }}</a>
-                </div>
+                <p>
+                    Your subscription is all set and ready to go. View the
+                    summary below, and log in once ready.
+                </p>
+                {% if amount %}
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{ subscription }} Subscription</td>
+                            <td><s>{{ amount }}</s> 0 UGX</td>
+                        </tr>
+                        <tr>
+                            <td>Verification Fee</td>
+                            <td>20000 UGX</td>
+                        </tr>
+                        <tr class="total-row">
+                            <td>Total</td>
+                            <td>{{ total }}</td>
+                        </tr>
+                    </tbody>
+                </table>
                 {% endif %}
+
+                <a href="{{link}}" class="button">pro.robia.ug/dashboard</a>
             </div>
             <hr />
             <div class="email-footer">

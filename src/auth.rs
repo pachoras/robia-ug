@@ -2,7 +2,7 @@ use axum::{extract::FromRequestParts, http::header::AUTHORIZATION};
 
 use crate::{
     api::{ApiError, ApiErrorTypes},
-    models::{self, ApplicationToken},
+    models::{self, ApplicationToken, ProviderProfile, TokenTypeVariants, User},
     state,
 };
 
@@ -18,9 +18,17 @@ async fn verify_token(
             if auth_str.starts_with("Bearer ") {
                 let token = auth_str.trim_start_matches("Bearer ").to_string();
                 match models::ApplicationToken::find_by_token(&state.pool, &token).await {
-                    Ok(matched_token) => {
-                        return Ok(matched_token);
-                    }
+                    Ok(matched_token) => match matched_token.verify().await {
+                        Ok(verified_token) => {
+                            return Ok(verified_token.clone());
+                        }
+                        Err(_) => {
+                            return Err(ApiError {
+                                message: "Invalid authentication token.".to_string(),
+                                error_type: ApiErrorTypes::AuthenticationFailed,
+                            });
+                        }
+                    },
                     Err(_) => {
                         return Err(ApiError {
                             message: "Invalid authentication token.".to_string(),
@@ -51,7 +59,19 @@ impl FromRequestParts<state::AppState> for ProvidesValidAuthentication {
         state: &state::AppState,
     ) -> Result<Self, ApiError> {
         match verify_token(&mut parts, &state).await {
-            Ok(token) => return Ok(ProvidesValidAuthentication(token)),
+            Ok(token) => {
+                if token.token_type == TokenTypeVariants::AdminAuthentication as i32
+                    || token.token_type == TokenTypeVariants::ProAuthentication as i32
+                    || token.token_type == TokenTypeVariants::LoansAuthentication as i32
+                {
+                    return Ok(ProvidesValidAuthentication(token));
+                }
+                return Err(ApiError {
+                    message: "Invalid token".to_string(),
+                    error_type: ApiErrorTypes::AuthenticationFailed,
+                });
+            }
+
             Err(_) => {
                 return Err(ApiError {
                     message: "Missing or invalid authentication header".to_string(),
@@ -59,6 +79,74 @@ impl FromRequestParts<state::AppState> for ProvidesValidAuthentication {
                 });
             }
         }
+    }
+}
+
+/// After a valid token is available, get the user.
+/// Note: Must be used *after ProvidesValidAuthentication
+pub struct ProvidesUser(pub models::User);
+
+impl FromRequestParts<state::AppState> for ProvidesUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &state::AppState,
+    ) -> Result<Self, ApiError> {
+        if let Some(auth_header) = parts.headers.get(AUTHORIZATION) {
+            if let Ok(auth_str) = auth_header.to_str() {
+                if auth_str.starts_with("Bearer ") {
+                    let token = auth_str.trim_start_matches("Bearer ").to_string();
+                    match User::find_by_token(&state.pool, &token).await {
+                        Ok(user) => return Ok(ProvidesUser(user)),
+                        Err(_) => {
+                            return Err(ApiError {
+                                message: "User doesn't exist".to_string(),
+                                error_type: ApiErrorTypes::AuthenticationFailed,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        return Err(ApiError {
+            message: "Missing or invalid authentication header".to_string(),
+            error_type: ApiErrorTypes::AuthenticationFailed,
+        });
+    }
+}
+
+/// After a valid token is available, get the provider.
+/// Note: Must be used *after ProvidesValidAuthentication
+pub struct ProvidesProvider(pub models::ProviderProfile);
+
+impl FromRequestParts<state::AppState> for ProvidesProvider {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &state::AppState,
+    ) -> Result<Self, ApiError> {
+        if let Some(auth_header) = parts.headers.get(AUTHORIZATION) {
+            if let Ok(auth_str) = auth_header.to_str() {
+                if auth_str.starts_with("Bearer ") {
+                    let token = auth_str.trim_start_matches("Bearer ").to_string();
+                    match ProviderProfile::find_by_token(&state.pool, &token).await {
+                        Ok(provider_profile) => return Ok(ProvidesProvider(provider_profile)),
+                        Err(_) => {
+                            return Err(ApiError {
+                                message: "User doesn't exist".to_string(),
+                                error_type: ApiErrorTypes::AuthenticationFailed,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        return Err(ApiError {
+            message: "Missing or invalid authentication header".to_string(),
+            error_type: ApiErrorTypes::AuthenticationFailed,
+        });
     }
 }
 

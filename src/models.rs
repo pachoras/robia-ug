@@ -1,4 +1,5 @@
 use axum::body::Bytes;
+use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::postgres::PgRow;
@@ -7,6 +8,16 @@ use std::collections::HashMap;
 
 use crate::forms::ProviderProfileData;
 use crate::{files, forms, utils};
+
+pub async fn connect_to_db() -> Result<sqlx::PgPool, sqlx::Error> {
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    sqlx::PgPool::connect(&database_url).await
+}
+
+pub async fn run_migrations(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    sqlx::migrate!("./migrations").run(pool).await?;
+    Ok(())
+}
 
 /// Helper function to commit a transaction if the result is Ok, or rollback if it's an Err. Returns the unwrapped result or error.
 pub async fn commit_else_rollback<T>(
@@ -54,7 +65,6 @@ impl User {
             updated_at: Utc::now(),
         }
     }
-
     /// Creates a new user. Returns the created user or an error if there's a database issue.
     /// Note that this function does not commit (flush) contents
     pub async fn create<'a>(
@@ -87,12 +97,17 @@ impl User {
             .fetch_one(pool)
             .await
     }
-    /// Finds a user profile by its email. Returns an error if not found or if there's a database issue.
+    /// Finds a user by its email. Returns an error if not found or if there's a database issue.
     pub async fn find_by_email(pool: &sqlx::PgPool, email: &String) -> Result<User, sqlx::Error> {
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
             .bind(&email)
             .fetch_one(pool)
             .await
+    }
+    /// Finds a user by its token. Returns an error if not found or if there's a database issue.
+    pub async fn find_by_token(pool: &sqlx::PgPool, token: &String) -> Result<User, sqlx::Error> {
+        let token = ApplicationToken::find_by_token(pool, token).await?;
+        User::find(pool, token.user_id).await
     }
     /// Updates a user by its ID. Returns the updated user or an error if there's a database issue.
     pub async fn update<'a>(
@@ -443,6 +458,14 @@ impl ProviderProfile {
         .fetch_one(pool)
         .await
     }
+    /// Finds a provider profile by its token. Returns an error if not found or if there's a database issue.
+    pub async fn find_by_token(
+        pool: &sqlx::PgPool,
+        token: &String,
+    ) -> Result<ProviderProfile, sqlx::Error> {
+        let token = ApplicationToken::find_by_token(pool, token).await?;
+        ProviderProfile::find_by_user_id(&pool, token.user_id).await
+    }
     /// Deletes a provider profile by user ID. Returns an error if there's a database issue.
     pub async fn delete(
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -489,11 +512,37 @@ impl ProviderProfile {
         Ok(())
     }
 }
-
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SubscriptionTypeVariants {
-    Beginner,
-    Pro,
-    Ultimate,
+    Beginner = 0,
+    Pro = 1,
+    Ultimate = 2,
+}
+
+impl SubscriptionTypeVariants {
+    pub fn get_variant_from_i32(name: i32) -> Self {
+        if name == SubscriptionTypeVariants::Beginner as i32 {
+            SubscriptionTypeVariants::Beginner
+        } else if name == SubscriptionTypeVariants::Pro as i32 {
+            SubscriptionTypeVariants::Pro
+        } else {
+            SubscriptionTypeVariants::Ultimate
+        }
+    }
+    pub fn get_amount_for_variant(&self) -> f64 {
+        match self {
+            SubscriptionTypeVariants::Beginner => 100000.0,
+            SubscriptionTypeVariants::Pro => 250000.0,
+            SubscriptionTypeVariants::Ultimate => 500000.0,
+        }
+    }
+    pub fn to_string(&self) -> String {
+        match self {
+            SubscriptionTypeVariants::Beginner => "Beginner".to_string(),
+            SubscriptionTypeVariants::Pro => "Pro".to_string(),
+            SubscriptionTypeVariants::Ultimate => "Ultimate".to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
@@ -507,19 +556,15 @@ pub struct Subscription {
 
 impl Subscription {
     /// Create a new subscription object
-    pub fn new(
-        user_id: i32,
-        subscription_type: i32,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
-    ) -> Self {
-        Subscription {
+    pub fn new(user_id: i32, subscription_type: SubscriptionTypeVariants) -> Self {
+        let subscription = Subscription {
             id: 0, // This will be set by the database
             user_id,
-            subscription_type,
-            start_date,
-            end_date,
-        }
+            subscription_type: subscription_type.clone() as i32,
+            start_date: Utc::now(),
+            end_date: Utc::now() + Duration::days(30), // 30 days by default
+        };
+        subscription
     }
 
     /// Creates a new subscription. Returns the created subscription or an error if there's a database issue.
@@ -822,12 +867,122 @@ impl AdditionalFile {
     }
 }
 
-pub async fn connect_to_db() -> Result<sqlx::PgPool, sqlx::Error> {
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    sqlx::PgPool::connect(&database_url).await
+pub const PENDING: &'static str = "pending";
+pub const PAID: &'static str = "paid";
+pub const CANCELLED: &'static str = "cancelled";
+
+#[derive(Clone, Debug, FromRow, Serialize, Deserialize)]
+pub struct Invoice {
+    pub id: i32,
+    pub user_id: i32,
+    pub invoice_number: String,
+    pub amount: f64,
+    pub status: String,
+    pub invoice_type: i32,
+    pub issued_date: DateTime<Utc>,
+    pub due_date: Option<DateTime<Utc>>,
+    pub paid_date: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-pub async fn run_migrations(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
-    sqlx::migrate!("./migrations").run(pool).await?;
-    Ok(())
+impl Invoice {
+    pub fn new(
+        user_id: i32,
+        amount: f64,
+        due_date: Option<DateTime<Utc>>,
+        invoice_type: SubscriptionTypeVariants,
+    ) -> Self {
+        Invoice {
+            id: 0,
+            user_id,
+            invoice_number: utils::generate_random_string(12),
+            invoice_type: invoice_type as i32,
+            amount,
+            status: PENDING.to_string(),
+            issued_date: Utc::now(),
+            due_date,
+            paid_date: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+    /// Creates a new invoice record in the database.
+    pub async fn create(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        invoice: &Invoice,
+    ) -> Result<Invoice, sqlx::Error> {
+        sqlx::query_as(
+            "INSERT INTO invoices (user_id, invoice_number, invoice_type, amount, status, issued_date, due_date, paid_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+        )
+        .bind(&invoice.user_id)
+        .bind(&invoice.invoice_number)
+        .bind(&invoice.invoice_type)
+        .bind(&invoice.amount)
+        .bind(&invoice.status)
+        .bind(&invoice.issued_date)
+        .bind(&invoice.due_date)
+        .bind(&invoice.paid_date)
+        .fetch_one(&mut **tx)
+        .await
+    }
+    /// Finds an invoice by its ID.
+    pub async fn find(pool: &sqlx::PgPool, id: &i32) -> Result<Invoice, sqlx::Error> {
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1")
+            .bind(&id)
+            .fetch_one(pool)
+            .await
+    }
+    /// Finds all invoices for a given user ID.
+    pub async fn find_by_user_id(
+        pool: &sqlx::PgPool,
+        user_id: i32,
+    ) -> Result<Vec<Invoice>, sqlx::Error> {
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE user_id = $1")
+            .bind(&user_id)
+            .fetch_all(pool)
+            .await
+    }
+    /// Finds all invoices for a given user ID.
+    pub async fn find_by_invoice_number(
+        pool: &sqlx::PgPool,
+        invoice_number: &String,
+    ) -> Result<Invoice, sqlx::Error> {
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE invoice_number = $1")
+            .bind(&invoice_number)
+            .fetch_one(pool)
+            .await
+    }
+    /// Deletes an invoice by its ID.
+    pub async fn delete(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        id: &i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM invoices WHERE id = $1")
+            .bind(&id)
+            .fetch_optional(&mut **tx)
+            .await?;
+        Ok(())
+    }
+    /// Updates an invoice by its ID.
+    pub async fn update(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        id: &i32,
+        invoice: &Invoice,
+    ) -> Result<Invoice, sqlx::Error> {
+        sqlx::query_as(
+            "UPDATE invoices SET user_id = $1, invoice_number = $2, invoice_type = $3, amount = $4, status = $5, issued_date = $6, due_date = $7, paid_date = $8, updated_at = CURRENT_TIMESTAMP WHERE id = $9 RETURNING *",
+        )
+        .bind(&invoice.user_id)
+        .bind(&invoice.invoice_number)
+        .bind(&invoice.invoice_type)
+        .bind(&invoice.amount)
+        .bind(&invoice.status)
+        .bind(&invoice.issued_date)
+        .bind(&invoice.due_date)
+        .bind(&invoice.paid_date)
+        .bind(&id)
+        .fetch_one(&mut **tx)
+        .await
+    }
 }

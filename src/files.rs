@@ -313,7 +313,7 @@ pub async fn initialize_s3_client() -> aws_sdk_s3::Client {
         &aws_config::Region::new("us-east-1"),
     )
     .await
-    .expect("Failed to create bucket");
+    .expect("Failed to create bucket. Is the host available?");
     client
 }
 

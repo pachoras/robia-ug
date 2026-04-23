@@ -1,12 +1,25 @@
-use axum::{Json, extract::State, response::IntoResponse};
+use axum::{
+    Json,
+    extract::{Query, State},
+    response::{IntoResponse, Redirect},
+};
 
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    auth::{ProvidesValidAuthentication, ProvidesValidSubscription, verify_google_token},
-    consts, mail,
-    models::{self, ProviderProfile, TokenTypeVariants},
+    auth::{
+        ProvidesProvider, ProvidesUser, ProvidesValidAuthentication, ProvidesValidSubscription,
+        verify_google_token,
+    },
+    consts,
+    flutterwave::PaymentRequestData,
+    mail::{self, send_new_subscription_email},
+    models::{
+        self, CANCELLED, Invoice, PAID, PENDING, ProviderProfile, Subscription,
+        SubscriptionTypeVariants, TokenTypeVariants, User,
+    },
     state::AppState,
     workflows,
 };
@@ -19,10 +32,11 @@ pub enum ApiErrorTypes {
     UserNotFound,
     AuthenticationFailed,
     SubscriptionInvalid,
+    PaymentFailed,
     InternalServerError,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApiError {
     pub message: String,
     pub error_type: ApiErrorTypes,
@@ -38,37 +52,9 @@ impl IntoResponse for ApiError {
             ApiErrorTypes::AuthenticationFailed => "AUTHENTICATION_FAILED",
             ApiErrorTypes::SubscriptionInvalid => "SUBSCRIPTION_INVALID",
             ApiErrorTypes::InternalServerError => "INTERNAL_SERVER_ERROR",
+            ApiErrorTypes::PaymentFailed => "PAYMENT_FAILED",
         };
         Json(json!({"status": status, "error": self.message})).into_response()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ApiResponseStatus {
-    OK,
-    MISSING,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ApiResponse<T> {
-    pub status: ApiResponseStatus,
-    pub data: Option<T>,
-    pub error: Option<String>,
-}
-
-impl<T> IntoResponse for ApiResponse<T>
-where
-    T: Serialize,
-{
-    fn into_response(self) -> axum::response::Response {
-        match self.status {
-            ApiResponseStatus::OK => {
-                Json(json!({"status": "OK", "data": self.data})).into_response()
-            }
-            ApiResponseStatus::MISSING => {
-                Json(json!({"status": "MISSING", "error": self.error})).into_response()
-            }
-        }
     }
 }
 
@@ -291,4 +277,236 @@ pub async fn get_valid_provider_profile(
     return Ok(SuccessResponse {
         data: Some(provider_profile),
     });
+}
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PaymentLinkValues {
+    pub subscription_type: u8,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PaymentLinkSuccess {
+    pub link: String,
+}
+
+/// Endpoint for creating payment links.
+pub async fn create_payment_link(
+    State(state): State<AppState>,
+    ProvidesValidAuthentication(_): ProvidesValidAuthentication,
+    ProvidesUser(user): ProvidesUser,
+    ProvidesProvider(provider_profile): ProvidesProvider,
+    Json(payload): Json<PaymentLinkValues>,
+) -> Result<SuccessResponse<PaymentLinkSuccess>, ApiError> {
+    let sub_type: i32 = payload.subscription_type.to_string().parse().unwrap();
+    let selected_subscription = SubscriptionTypeVariants::get_variant_from_i32(sub_type);
+    // If new subscription, apply discount
+    let amount: f64;
+    match Subscription::find_by_user_id(&state.pool, user.id).await {
+        Ok(_) => {
+            amount = selected_subscription.get_amount_for_variant();
+        }
+        Err(_) => {
+            amount = 20000.0; // Discounted amount
+        }
+    };
+    // Prepare transaction
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| ApiError {
+            message: "Database unavailable".to_string(),
+            error_type: ApiErrorTypes::PaymentFailed,
+        })
+        .unwrap();
+
+    let mut err = None;
+    // Cancel pending invoicea
+    match Invoice::find_by_user_id(&state.pool, user.id).await {
+        Ok(invoices) => {
+            for invoice in invoices {
+                if invoice.status == PENDING {
+                    match Invoice::delete(&mut tx, &invoice.id).await {
+                        Ok(_) => {}
+                        Err(_) => {
+                            err = Some(ApiError {
+                                message: "User not found".to_string(),
+                                error_type: ApiErrorTypes::PaymentFailed,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Err(_) => {}
+    }
+    let mut payment_data = PaymentRequestData::new(
+        "".to_string(),
+        amount,
+        user.email,
+        provider_profile.employee_name,
+        provider_profile.phone_number,
+        "Provider subscription".to_string(),
+    );
+    // Create new invoice
+    let due_date = Utc::now() + Duration::hours(24);
+    let invoice_data = Invoice::new(user.id, amount, Some(due_date), selected_subscription);
+    match Invoice::create(&mut tx, &invoice_data).await {
+        Ok(invoice) => payment_data.tx_ref = invoice.invoice_number,
+        Err(e) => {
+            log::error!("{}", e);
+            err = Some(ApiError {
+                message: "Error creating invoice".to_string(),
+                error_type: ApiErrorTypes::PaymentFailed,
+            });
+        }
+    };
+    if err.is_some() {
+        tx.rollback()
+            .await
+            .map_err(|_| ApiError {
+                message: "User not found".to_string(),
+                error_type: ApiErrorTypes::PaymentFailed,
+            })
+            .unwrap();
+        return Err(err.unwrap());
+    } else {
+        tx.commit()
+            .await
+            .map_err(|_| ApiError {
+                message: "User not found".to_string(),
+                error_type: ApiErrorTypes::PaymentFailed,
+            })
+            .unwrap();
+    }
+    // Submit payment to flutterwave
+
+    let payment_response = state
+        .flutterwave
+        .get_payment_link(&payment_data)
+        .await
+        .map_err(|e| ApiError {
+            message: e.0,
+            error_type: ApiErrorTypes::PaymentFailed,
+        })
+        .unwrap();
+    // Return redirect link
+    return Ok(SuccessResponse {
+        data: Some(PaymentLinkSuccess {
+            link: payment_response.data.link,
+        }),
+    });
+}
+#[derive(Debug, Deserialize)]
+pub struct FlutterwaveCallbackParams {
+    tx_ref: String,
+    status: String,
+}
+
+/// Handle flutterwave callbacks.
+pub async fn handle_flutterwave_callback(
+    State(state): State<AppState>,
+    callback_params: Query<FlutterwaveCallbackParams>,
+) -> Result<Redirect, ApiError> {
+    // Prepare transaction
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| ApiError {
+            message: "Database unavailable".to_string(),
+            error_type: ApiErrorTypes::PaymentFailed,
+        })
+        .unwrap();
+    // Find invoice for this tx_ref
+    let mut invoice = Invoice::find_by_invoice_number(&state.pool, &callback_params.tx_ref)
+        .await
+        .map_err(|_| ApiError {
+            message: "Invoice does not exist".to_string(),
+            error_type: ApiErrorTypes::PaymentFailed,
+        })
+        .unwrap();
+    let mut err = 'a'.to_string();
+    if callback_params.status == "successful" {
+        // Verify again
+        match state
+            .flutterwave
+            .verify_payment(&callback_params.tx_ref)
+            .await
+        {
+            Ok(response) => {
+                if response.status == "success" {
+                    // Update invoice status
+                    invoice.status = PAID.to_string();
+                    // Create a new subscription
+                    let sub_type: i32 = invoice.invoice_type.to_string().parse().unwrap();
+                    let selected_subscription =
+                        SubscriptionTypeVariants::get_variant_from_i32(sub_type);
+                    let subscription =
+                        Subscription::new(invoice.user_id, selected_subscription.clone());
+                    match Subscription::create(&mut tx, &subscription).await {
+                        Ok(_) => {
+                            // Finally, send email
+                            let user = User::find(&state.pool, invoice.user_id)
+                                .await
+                                .map_err(|_| ApiError {
+                                    message: "Database Error".to_string(),
+                                    error_type: ApiErrorTypes::PaymentFailed,
+                                })
+                                .unwrap();
+                            // Send email with subscription details
+                            send_new_subscription_email(
+                                user.email,
+                                invoice.amount,
+                                invoice.amount,
+                                selected_subscription.to_string(),
+                            )
+                            .await;
+                        }
+                        Err(e) => err = e.to_string(),
+                    };
+                } else {
+                    invoice.status = CANCELLED.to_string();
+                }
+            }
+            Err(e) => err = e.0,
+        };
+    } else if callback_params.status == "failed" {
+        invoice.status = CANCELLED.to_string();
+    } else {
+        err = "unknown status".to_string();
+    }
+    // Update invoice before commit
+    match Invoice::update(&mut tx, &invoice.id, &invoice).await {
+        Ok(_) => {}
+        Err(e) => err = e.to_string(),
+    };
+    if err != 'a'.to_string() {
+        log::error!("params, {:?}, {}", callback_params, err);
+        tx.rollback()
+            .await
+            .map_err(|_| ApiError {
+                message: "Database Error".to_string(),
+                error_type: ApiErrorTypes::PaymentFailed,
+            })
+            .unwrap();
+        return Err(ApiError {
+            message: "Flutterwave Error".to_string(),
+            error_type: ApiErrorTypes::PaymentFailed,
+        });
+    } else {
+        tx.commit()
+            .await
+            .map_err(|_| ApiError {
+                message: "Database Error".to_string(),
+                error_type: ApiErrorTypes::PaymentFailed,
+            })
+            .unwrap();
+    }
+    // Redirect to pro application dashboard
+    let pro_application_url = std::env::var("PRO_APPLICATION_URL")
+        .unwrap_or_else(|_| "http://localhost:4000".to_string());
+    Ok(Redirect::to(&format!(
+        "{}/app/dashboard",
+        &pro_application_url
+    )))
 }

@@ -1,33 +1,28 @@
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-    message::header::ContentType,
+    message::{Mailbox, header::ContentType},
     transport::smtp::authentication::{Credentials, Mechanism},
 };
 
-use crate::renderer::init_renderer;
+use crate::{models::User, renderer::init_renderer};
 
 /// Sends an email using lettre
 pub async fn send_email(
-    from: &str,
     to: &str,
     subject: &str,
-    body: &str,
-    link: &str,
-    action: &str,
+    template: &str,
+    mut context: tera::Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Render email from template
     let mut tera = init_renderer();
-    tera.add_template_file("src/templates/email.html", Some("email.html"))
+    tera.add_template_file(format!("src/templates/{}", template), Some(template))
         .unwrap_or_else(|e| panic!("Failed to add template file: {}", e));
-    let mut context = tera::Context::new();
     context.insert("title", subject);
-    context.insert("message", body);
-    context.insert("link", link);
-    context.insert("action", action);
-    let rendered = tera.render("email.html", &context)?;
+    let rendered = tera.render(template, &context)?;
+    let no_reply: Mailbox = "Robia Labs <no-reply@robialabs.com>".parse()?;
     let email = Message::builder()
-        .from(from.parse()?)
-        .reply_to(from.parse()?)
+        .from(no_reply.clone())
+        .reply_to(no_reply)
         .to(to.parse()?)
         .subject(subject)
         .header(ContentType::TEXT_HTML)
@@ -57,23 +52,21 @@ pub fn send_admin_error_email(error_message: &str) -> Result<(), Box<dyn std::er
         log::info!("Debug mode enabled, skipping sending admin error email.");
         return Ok(());
     }
-    let _error_message = error_message.to_string();
+    let admin_email =
+        std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
+    let body = format!(
+        "A 500 error occurred in the application:\n\n{}",
+        error_message.to_string()
+    );
     // Send email in the background without blocking the main thread
     tokio::spawn(async move {
-        let admin_email =
-            std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
-        let from_email =
-            std::env::var("FROM_EMAIL").unwrap_or_else(|_| "noreply@example.com".to_string());
+        let mut context = tera::Context::new();
+        context.insert("message", &body);
         send_email(
-            &from_email,
             &admin_email,
             "500 Error Occurred in Application",
-            &format!(
-                "A 500 error occurred in the application:\n\n{}",
-                _error_message.to_string()
-            ),
-            "",
-            "View Logs",
+            "email.html",
+            context,
         )
         .await
         .map_err(|e| {
@@ -83,4 +76,97 @@ pub fn send_admin_error_email(error_message: &str) -> Result<(), Box<dyn std::er
         .unwrap();
     });
     Ok(())
+}
+
+/// Send welcome email from html template
+pub async fn send_welcome_email(user: User, token: String) {
+    // Send verification email
+    let hostname =
+        std::env::var("HOSTNAME").unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let link = format!("{}/verify-token/{}", hostname, token);
+    let body = format!(
+        r#"Your loan application has been received, please click the link below to complete your
+        registration and view your loan application status.
+
+        If you cannot click the link, please copy and paste the following URL into your browser:    {}"#,
+        link
+    );
+    // Send email in background task to avoid blocking the main thread
+    tokio::spawn(async move {
+        let mut context = tera::Context::new();
+        context.insert("message", &body);
+        context.insert("link", &link);
+        context.insert("action", "Verify Email");
+        send_email(&user.email, "Welcome To Robia", "email.html", context)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to send admin error email: {}", e);
+                e
+            })
+            .unwrap();
+    });
+}
+
+/// Send password reset email from html template
+pub async fn send_password_reset_email(user_email: String, token: String) {
+    // Send verification email
+    let hostname =
+        std::env::var("HOSTNAME").unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let link = format!("{}/verify-token/{}", hostname, token);
+    let body = format!(
+        r#"You recently requested a password reset. Please click the link below to reset your password.
+
+        If you did not request a password reset, please ignore this email or reply to let us know.
+        This password reset link is only valid for the next 24 hours.
+
+        If you cannot click the link, please copy and
+        paste the following URL into your browser:    {}"#,
+        link
+    );
+    // Send email in background task to avoid blocking the main thread
+    tokio::spawn(async move {
+        let mut context = tera::Context::new();
+        context.insert("message", &body);
+        context.insert("link", &link);
+        context.insert("action", "Verify Email");
+        send_email(&user_email, "Welcome To Robia", "email.html", context)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to send admin error email: {}", e);
+                e
+            })
+            .unwrap();
+    });
+}
+
+/// Send new subscription email from html template
+pub async fn send_new_subscription_email(
+    user_email: String,
+    amount: f64,
+    total: f64,
+    subscription: String,
+) {
+    // Send verification email
+    let hostname = std::env::var("PRO_APPLICATION_URL")
+        .unwrap_or_else(|_| "http://localhost:4000".to_string());
+    // Send email in background task to avoid blocking the main thread
+    tokio::spawn(async move {
+        let mut context = tera::Context::new();
+        context.insert("amount", &amount);
+        context.insert("total", &total);
+        context.insert("link", &hostname);
+        context.insert("subscription", &subscription);
+        send_email(
+            &user_email,
+            "Subscription Active",
+            "subscription_email.html",
+            context,
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to send admin error email: {}", e);
+            e
+        })
+        .unwrap();
+    });
 }

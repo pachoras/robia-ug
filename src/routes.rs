@@ -384,6 +384,7 @@ mod tests {
 
     use super::*;
     use crate::files;
+    use crate::flutterwave::Flutterwave;
     use crate::renderer::init_renderer;
     use crate::state::AppState;
     use axum::body::to_bytes;
@@ -399,6 +400,7 @@ mod tests {
                 .unwrap_or_else(|_| panic!("Failed to connect to the database")),
             s3_client: files::initialize_s3_client().await,
             rate_limit_bucket: Arc::new(RwLock::new(HashMap::new())),
+            flutterwave: Flutterwave::new().await,
         }
     }
 

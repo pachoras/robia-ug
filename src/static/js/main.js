@@ -132,7 +132,8 @@ function handleCredentialResponse(response) {
     .then((result) => {
       if (result.status === "OK") {
         window.location.href = `${result.data.application_url}/${result.data.token}`;
-      } else if (result.status === "MISSING") {
+      } else {
+        console.error("Login error, invalid status:", result.status);
         // Show popup element prompting user to sign up
         successPopupHTML = successPopupHTML.replace(
           "message",
@@ -145,8 +146,6 @@ function handleCredentialResponse(response) {
         setTimeout(() => {
           newdiv.remove();
         }, 9900);
-      } else {
-        console.error("Login error, invalid status:", result.status);
       }
     })
     .catch((error) => {
